@@ -32,12 +32,16 @@ source $REPO/env/bin/activate
 
 To activate the python virtual environment
 
+## Building
+
+Run: ```bash $REPO/build``` or run ```make``` under ```$REPO/src/static```.
+
 ## Running
 
 To run the backend server with the benchmarks from the paper please run:
 
 ```bash
-$REPO/src/server.py  --local --port 8080 --ename foo --lvlset ../lvlsets/unsolved.lvlset --db foo.db
+$REPO/src/server.py  --local --port 8080 --ename foo --lvlset $REPO/unsolved.lvlset --db foo.db
 ```
 
 For more information on arguments to the command run ``` $REPO/src/server.py -h```. At this point you should be able to play the game
