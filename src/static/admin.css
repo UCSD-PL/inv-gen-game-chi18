@@ -1,0 +1,19 @@
+.TriedInvariant {
+  color: blue;
+}
+
+.FoundInvariant {
+  color: green;
+}
+
+.StartLevel {
+  color: grey;
+}
+
+.FinishLevel {
+  color: grey;
+}
+
+.PowerupsActivated {
+  color: cyan;
+}

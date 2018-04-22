@@ -1,0 +1,727 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- third party libraries -->
+  <script src="jquery-1.12.0.min.js"></script>
+  <script src="jquery.jsonrpcclient.js"></script>
+  <script src="jquery.color-2.1.2.min.js"></script>
+  <script src="jquery-ui-1.11.4/jquery-ui.js"></script>
+  <script src="esprima.js"></script>
+  <link rel="stylesheet" href="bootstrap.min.css">
+  <link rel="stylesheet" href="bootstrap-theme.min.css">
+  <script src="bootstrap.min.js"></script>
+
+  <!-- our code -->
+  <link rel="stylesheet" href="inv.css">
+  <link rel="stylesheet" href="arrow.css">
+  <script src="build/ts/container.js"></script>
+  <script src="build/ts/stickyWindow.js"></script>
+  <script src="build/ts/progressWindow.js"></script>
+  <script src="build/ts/scoreWindow.js"></script>
+  <script src="build/ts/logic.js"></script>
+  <script src="build/ts/traceWindow.js"></script>
+  <script src="build/ts/ctrexTracesWindow.js"></script>
+  <script src="build/ts/gameLogic.js"></script>
+  <script src="build/ts/ctrexGameLogic.js"></script>
+  <script src="build/ts/roundsGameLogic.js"></script>
+  <script src="build/ts/level.js"></script>
+  <script src="build/ts/eval.js"></script>
+  <script src="build/ts/pp.js"></script>
+  <script src="build/ts/rpc.js"></script>
+  <script src="build/ts/util.js"></script>
+  <script src="build/ts/powerups.js"></script>
+
+  <script>
+    var mode = Args.get_mode();
+    var curLvl = null;
+    var curLvlId;
+    var curLvlSet;
+    var curL = null;
+    var lvls = null;
+    var tracesW = null, progW = null, scoreW = null;
+    var gameLogic = null;
+    var stepTimeout = 5000;
+    var curScript = null;
+    var dynamicLvlOrder = true;
+    var numLvlPassed = 0;
+
+    disableBackspaceNav();
+
+    function loadTrace(res) {
+      if (res === null)
+        doneScreen(true)
+      else {
+        curLvlSet = res[0];
+        let lvl = res[1];
+        curLvlId = lvl.id;
+        console.log("Just loaded " + curLvlSet + "." + curLvlId);
+        gameLogic.loadLvl(lvl);
+        if (lvl.hint === null) {
+          $("#hint-row").html("");
+        } else {
+          if (lvl.hint.type == "plain") {
+            $("#hint-row").html("<p class='lead'><b>" + lvl.hint + "</b></p>");
+          } else if (lvl.hint.type == "post-assert") {
+            var pos_res = invEval(lvl.hint.assert, lvl.variables, lvl.data[0])
+            if (evalResultBool(pos_res)) {
+              var holdsOnLast = pos_res[pos_res.length-1];
+              var holdsOnAll = pos_res.reduce((acc,val)=> acc && val, true)
+
+              if (holdsOnAll) {
+                $("#hint-row").html("<p class='lead'><b>Hint: Check out: " +
+                  lvl.hint.assert + 
+                  "</b></p>");
+                traceW.setExp(lvl.hint.assert);
+              } else if (holdsOnLast) {
+                $("#hint-row").html("<p class='lead'><b>Hint: " +
+                  lvl.hint.assert + 
+                  " holds for the last row. Can you change it to work for all rows?</b></p>");
+                traceW.setExp(lvl.hint.assert);
+              } else {
+                // TODO
+              }
+            } else {
+              // TODO
+            }
+          }
+        }
+      }
+    }
+
+    function loadNextTrace() {
+      if (mode == "rounds" && gameLogic.curLvl && !gameLogic.lvlSolvedF) {
+        gameLogic.curLvl.genNext(curLvlSet,
+            gameLogic.foundJSInv.map(function(x){ return x.canonForm}),
+            loadTrace)
+      } else {
+        DynamicLevel.loadNext(loadTrace);
+      }
+    }
+
+    function nextLvl() {
+      if (dynamicLvlOrder)
+        loadNextTrace()
+      else
+        loadLvl(curLvl + 1);
+    }
+
+    function loadLvlSet(lvlset) {
+      curLvlSet = lvlset;
+      res = rpc.call('App.listData', [lvlset], function(res) {
+        lvls = res;
+        curLvl = -1;
+        nextLvl();
+      }, log)
+    }
+
+    function doneScreen(alldone) {
+      let assignment_id = Args.get_assignment_id();
+      if (assignment_id == "ASSIGNMENT_ID_NOT_AVAILABLE") {
+          $("#done-screen").html("<h2 class='text-center'><b>You are previewing the HIT. To perform this HIT, please accept it.</b></h2>");
+          $("#done-screen").fadeIn(1000);
+          return;
+      }
+      if (assignment_id !== undefined) {
+          document.getElementById("assignment-id-in-form").value = assignment_id;
+      }
+      let turk_submit_to = Args.get_turk_submit_to();
+      if (turk_submit_to !== undefined) {
+          document.getElementById("turk-form").action = turk_submit_to + "/mturk/externalSubmit";
+      }
+
+      function getSelected(category) {
+        return $('#turk-form input[name=' + category + ']:checked')
+      }
+
+      $("#final-submit").click(function(evt) {
+        $("label").removeClass("highlight")
+        $('#turk-form-error').html("");
+        var categories = ["fun", "challenging", "prog_experience", "math_experience"];
+        var selected = $.map(categories, getSelected);
+        var answered = $.map(selected, (s)=> s.length > 0);
+
+        var missing = false;
+        for (var i in answered) {
+          if (!answered[i]) {
+            $("label." + categories[i]).addClass("highlight")
+            missing = true;
+          }
+        }
+
+        if (missing) {
+          $('#turk-form-error').html("Please answer the required questions (highlighted in red)");
+          evt.preventDefault()
+        }
+      })
+      msg = "Good job! You finished " + numLvlPassed + " level(s)! Your score is: " + gameLogic.score  + "!";
+      if (alldone) {
+         msg = "There are no more levels to play at this moment.<br>" + msg
+      }
+      $("#done-screen").prepend("<h2 class='good text-center'>" + msg + "</h2>");
+      logEvent("GameDone", [numLvlPassed]);
+  
+      $("#done-screen").fadeIn(1000);
+      //$("#done-screen").click(function() {
+      //  window.location.replace('survey.html' + window.location.search);
+      //});
+    }
+
+    function labelRemover(lbl) {
+      return function () { removeLabel(lbl) }
+    }
+
+    var tutorialScript = [
+      {
+        setup: function (cs) {
+                  curL = label($('#help_row'), "Help on operators or Replay Tutorials", "left")
+                  $('body').focus();
+                  cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32);
+        }
+      },
+      {
+        setup: function (cs) {
+          curL = label($("#report_problem_row"),
+            "If you notice a problem, click here to tell us", "up");
+          $("body").focus();
+          cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32);
+        }
+      },
+      {
+        setup: function (cs) {
+          if (!$("#discovered-invariants-div .good-invariant").length)
+            return;
+          curL = label($("#discovered-invariants-div"),
+            "You played this level before, so<br />" +
+            "we included your expressions from<br />" +
+            "last time. Try to find more!",
+            "right");
+          $("body").focus();
+          cs.nextStepOnKeyClickOrTimeout(2 * stepTimeout, labelRemover(curL), 32);
+        }
+      },
+      { setup: function (cs) {
+                   $('#formula-entry').focus();
+                   curScript = null;
+               }
+      },
+    ]
+
+    $(document).ready(function() {
+      if (Args.get_assignment_id() == "ASSIGNMENT_ID_NOT_AVAILABLE") {
+        s = "This is just a preview of the HIT. The work you do here will have to be redone when you accept the HIT."
+        $("#hit-preview-warning").html("<p class='lead'><b>" + s + "</b></p>");
+      }
+
+      rpc = new $.JsonRpcClient({ ajaxUrl: "/api" })
+      progW = new ProgressWindow($('#discovered-invariants-div'));
+      scoreW = new ScoreWindow($('#score-div'));
+      if (mode == "ctrex" || mode == "rounds") {
+        traceW = new CounterexTracesWindow($('#data-display'));
+      } else {
+        traceW = new PositiveTracesWindow($('#data-display'));
+      }
+      stickyW = new StickyWindow($('#sticky'))
+      if (mode == "ctrex") {
+        gameLogic = new CounterexGameLogic(traceW, progW, scoreW, stickyW);
+      } else if (mode == "rounds") {
+        gameLogic = new RoundsGameLogic(traceW, progW, scoreW, stickyW);
+      } else {
+        gameLogic = new PatternGameLogic(traceW, progW, scoreW, stickyW);
+      }
+
+      gameLogic.onLvlPassed(function() {
+        numLvlPassed = numLvlPassed + 1;
+        function plural(n,s) { return n == 1? s : s + "s" }
+        if (numLvlPassed >= 2) {
+          s = "You can continue or quit.<br>Each additional level you pass will give you a new $0.50 bonus!";
+          $("#next-or-quit-additional-text").html("<h2>"+s+"</h2>");
+          $("#quit-overlay").show();
+        } else {
+          left = 2 - numLvlPassed;
+          s = "Please try to finish at least " + left + plural(left," more level") + "!"
+          $("#next-or-quit-additional-text").html("<h2>"+s+"</h2>")
+          $("#quit-overlay").hide();
+        }
+        $("#next-or-quit-screen").fadeIn(1000);
+
+      });
+
+      $('#next-level-overlay').click(function() {
+        $("#next-or-quit-screen").fadeOut(1000);
+        nextLvl();
+      });
+
+      $('#help').click(function() {
+        $('#help-content').slideToggle(200);
+      })
+
+      var openEx = null;
+      function _openEx(idn) {
+        var el = $('#' + idn)[0]
+        if (openEx != null && openEx != el) {
+          $(openEx).slideToggle(200, function () {
+            $(el).slideToggle(200);
+          })
+          openEx = el;
+        } else if (openEx != null) {
+          assert (openEx == el);
+          $(openEx).slideToggle(200);
+          openEx = null;
+        } else {
+          assert (openEx == null);
+          $(el).slideToggle(200);
+          openEx = el;
+        }
+      }
+
+      var ops = [['#plus_op', 'plus_ex'],
+                 ['#minus_op', 'minus_ex'],
+                 ['#mul_op', 'mul_ex'],
+                 ['#div_op', 'div_ex'],
+                 ['#mod_op', 'mod_ex'],
+                 ['#eq_op', 'eq_ex'],
+                 ['#neq_op', 'neq_ex'],
+                 ['#lt_op', 'lt_ex'],
+                 ['#lte_op', 'lte_ex'],
+                 ['#gt_op', 'gt_ex'],
+                 ['#gte_op', 'gte_ex'],
+                 ['#not_op', 'not_ex'],
+                 ['#and_op', 'and_ex'],
+                 ['#or_op', 'or_ex'],
+                 //['#equiv_op', 'equiv_ex'],
+      ]
+      if (!Args.get_noifs()) {
+        ops.push(['#impl_op', 'impl_ex'])
+      }
+      ops.push(['#tutorials', 'tutorials_info'])
+      for (var i in ops) {
+        $(ops[i][0]).click(function (lbl) {
+          return function() {_openEx(lbl);}
+        }(ops[i][1]))
+      }
+
+      $('#see-conditional-tutorial-1, #see-conditional-tutorial-2').click(function() {
+        logEvent("SeeConditionalTutorial", []);
+        $('#tutorial-video').fadeIn(1000)
+      });
+      $('#tutorial-video-done').click(function() {
+        $('#tutorial-video').fadeOut(1000)
+      });
+      $('#replay-tutorial-all').click(function() {
+        logEvent("ReplayTutorialAll", []);
+        window.open('tutorial.html' + queryAppend(window.location.search, "tutorialAction=redo-all"),
+                    '_blank').focus();
+      })
+      $('#replay-tutorial-cond-1, #replay-tutorial-cond-2').click(function() {
+        logEvent("ReplayTutorialConditional", []);
+        window.open('tutorial.html' + queryAppend(window.location.search, "tutorialAction=redo-cond"),
+                    '_blank').focus();
+      })
+
+      if (Args.get_noifs()) {
+        $("#impl_op").hide();
+        $("#see-conditional-tutorial-1").hide();
+        $("#see-conditional-tutorial-2").hide();
+        $("#tutorial-video-done").hide();
+        $("#replay-tutorial-cond-1").hide();
+        $("#replay-tutorial-cond-2").hide();
+        $("#impl_ex").hide();
+      }
+
+      $('#quit').click(function () { doneScreen(false) });
+      $('#skip-to-next-lvl').click(function () {
+        $('#skip-to-next-lvl').prop("disable", true);
+        $('#skip-to-next-lvl').hide();
+        gameLogic.skipToNextLvl();
+      });
+      $('#quit-overlay').click(function() { doneScreen(false) });
+
+      $('#arrows').click(function() {
+        if (curScript == null) {
+          curScript = new Script(tutorialScript);
+        }
+      })
+
+      $("#report_problem").click(function() {
+        $("#problem_form_error").hide();
+        $("#problem_input").val("");
+        $("#problem_screen").fadeIn(1000);
+      });
+
+      $("#problem_form").submit(function(e) {
+        e.preventDefault();
+      });
+
+      $("#problem_send").click(function() {
+        var errorMessage = $("#problem_form_error");
+        var desc = $("#problem_input").val();
+
+        if (desc === "") {
+          errorMessage
+            .text("Please enter a description of the problem.")
+            .show();
+          return;
+        }
+
+        rpc.call("App.reportProblem", [mturkId(), curLvlId, desc],
+          function(res) {
+            $("#problem_screen").fadeOut(1000);
+          }, function() {
+            errorMessage
+              .text("An error occurred. Please try again.")
+              .show();
+          });
+      });
+
+      $("#problem_close").click(function() {
+        $("#problem_screen").fadeOut(1000);
+        $("#problem_input").val("");
+      });
+
+      if (dynamicLvlOrder)
+        nextLvl()
+      else
+        loadLvlSet("desugared-boogie-benchmarks");
+
+      gameLogic.onLvlLoaded(function () {
+        curScript = new Script(tutorialScript)
+        //gameLogic.onLvlLoaded(function (){})
+      })
+
+      gameLogic.onUserInput(function () {
+        if (curScript) {
+          curScript.cancel()
+          curScript = null
+        }
+        if (gameLogic.foundJSInv.length >= 4) {
+          $("#skip-to-next-lvl").show();
+          $('#skip-to-next-lvl').prop("disable", false);
+        }
+      })
+    })
+
+  </script>
+</head>
+<body>
+  <div class='container'>
+    <div class='row' id='hit-preview-warning'>
+    </div>
+    <div class='row' id='hint-row'>
+    </div>
+    <div class='row'>
+      <div class='col-md-1' id='dummy'>
+      </div>
+      <div class='col-md-1 box stickyWindow' id='sticky'>
+      </div>
+
+      <div class='col-md-6' id='middle'>
+        <div class='row' id='data-display' style="font-family:monospace;">
+        </div>
+        <div class='row box' id='help_row'>
+                <span class='centered'> <h4>Click below for Help on Operators or to Replay tutorials:</h4></span>
+                <div id='ops'>
+                  <table class='opTable'>
+                    <tr>
+                      <td class="centered"><a id='plus_op'>+</a></td>
+                      <td class="centered"><a id='minus_op'>-</a></td>
+                      <td class="centered"><a id='mul_op'>*</a></td>
+                      <td class="centered"><a id='div_op'>/</a></td>
+                      <td class="centered"><a id='mod_op'>%</a></td>
+                      <td class="centered"><a id='eq_op'>=</a></td>
+                      <td class="centered"><a id='neq_op'>!=</a></td>
+                      <td class="centered"><a id='lt_op'>&lt</a></td>
+                      <td class="centered"><a id='lte_op'>&lt=</a></td>
+                      <td class="centered"><a id='gt_op'>&gt</a></td>
+                      <td class="centered"><a id='gte_op'> &gt=</a></td>
+                      <td class="centered"><a id='not_op'>!</a></td>
+                      <td class="centered"><a id='and_op'>&amp;&amp;</a></td>
+                      <td class="centered"><a id='or_op'>||</a></td>
+                      <td class="centered"><a id='impl_op'>if</a></td>
+                      <td class="centered"><a id='tutorials'>Tutorials</a></td>
+<!--
+                      <td class="centered"><a id='equiv_op'>&lt=&gt</a></td>
+-->
+                    </tr>
+                  </table>
+                      
+                <h5>
+                <div id="plus_ex" style='display: none'>
+                  Addition: X + Y returns the sum of X and Y. <br> Examples:
+                    <span class='bold'>3+4</span> ;
+                    <span class='bold'>i+1</span> ;
+                    <span class='bold'>i=j+1</span>
+                </div>
+                <div id="minus_ex" style='display: none'>
+                  Subtraction: X - Y returns the difference of X and Y. <br> Examples:
+                    <span class='bold'>5-4</span> ;
+                    <span class='bold'>i-1</span> ;
+                    <span class='bold'>i-j=5</span>
+                </div>
+                <div id="mul_ex" style='display: none'>
+                  Multiplication: X * Y returns X and Y. <br> Examples:
+                    <span class='bold'>5*4</span> ;
+                    <span class='bold'>5*j=20</span> ;
+                    <span class='bold'>5*j=20</span>  
+                </div>
+                <div id="div_ex" style='display: none'>
+                  Division: X / Y returns X divived by Y. <br> Examples:
+                    <span class='bold'>10/2</span> ;
+                    <span class='bold'>i/3</span> ;
+                    <span class='bold'>i/2=5</span>
+                </div>
+                <div id="mod_ex" style='display: none'>
+                  Modulo: X % Y  returns the remainder of division of X by Y. <br> Examples:
+                    <span class='bold'>5 % 3 = 2</span> ;
+                    <span class='bold'>i % 3</span>  
+                </div>
+                <div id="eq_ex" style='display: none'>
+                  Equality: X = Y is true if X is equal to Y. <br> Examples: 
+                    <span class='bold'>n = 5</span>; 
+                    <span class='bold'>!(5 = 4)</span>; 
+                    <span class='bold'>i = a+b</span>  
+                </div>
+                <div id="neq_ex" style='display: none'>
+                  Not-equal: X != Y is true if X is not equal to Y. <br> Examples:
+                    <span class='bold'>5 != 4</span> ;
+                    <span class='bold'>a != b+c</span>  
+                </div>
+                <div id="lt_ex" style='display: none'>
+                    Less than: X &lt; Y is true if X is less than Y. <br> Examples:
+                    <span class='bold'>4 &lt; 5</span> ;
+                    <span class='bold'>i &lt; 5</span> ;
+                    <span class='bold'>i &lt; j</span>  
+                </div>
+                <div id="lte_ex" style='display: none'>
+                    Less than or equal: X &lt;= Y is true if X is less than or equal to Y. <br> Examples: 
+                    <span class='bold'>4 &lt; 5</span>,
+                    <span class='bold'>5 &lt; 5</span>,
+                    <span class='bold'>i &lt;= 5</span>,
+                    <span class='bold'>i &lt;= j</span>
+                </div>
+                <div id="gt_ex" style='display: none'>
+                    Greater than: X &gt; Y is true if X is greater than Y. <br> Examples:
+                    <span class='bold'>5 &gt; 4</span>,
+                    <span class='bold'>i &gt; 3</span>  
+                </div>
+                <div id="gte_ex" style='display: none'>
+                    Greater than or equal: X &gt;= Y is true if X is greater than or equal to Y. <br>Examples:
+                    <span class='bold'>5 &gt;= 4</span>,
+                    <span class='bold'>4 &gt;= 4</span>,
+                    <span class='bold'>i &gt;= 3</span>  
+                </div>
+                <div id="not_ex" style='display: none'>
+                    Logical Not: !B is true if B is false. <br> Examples:
+                    <span class='bold'>!false</span>,
+                    <span class='bold'>!(3=4)</span>,
+                    <span class='bold'>!(i &gt;= 3)</span>  
+                </div>
+                <div id="and_ex" style='display: none'>
+                    Logical And: A &amp;&amp; B is true if both A and B are true. <br>Examples:
+                    <span class='bold'>true &amp;&amp; true</span>,
+                    <span class='bold'>(3 &gt; 0) &amp;&amp; (4 &lt;= 5) </span>,
+                    <span class='bold'>(i=2) &amp;&amp; (j &gt; 0 )</span>  
+                </div>
+                <div id="or_ex" style='display: none'>
+                    Logical Or: A || B is true if A is true or B is true. <br> Examples:
+                    <span class='bold'>true || false</span>,
+                    <span class='bold'>(3 &gt; 0) || (4 &lt;= 5) </span>,
+                    <span class='bold'>(i=2) || (j &gt; 0)</span>
+                </div>
+                <div id="impl_ex" style='display: none'>
+                    <p>
+                    If operator: "A if B" is true if A is true whenever B is true. <br> Examples:
+                    <span class='bold'>i=j if i < n</span> ;
+                    <span class='bold'>i=k if i >= n</span></p>
+                    <button id='see-conditional-tutorial-1'>Video of "if" Tutorial</button>
+                    <button id='replay-tutorial-cond-1'>Replay "if" Tutorial</button></p>
+                </div>
+                <div id="tutorials_info" style='display: none'>
+                    <button id='see-conditional-tutorial-2'>Video of "if" Tutorial</button>
+                    <button id='replay-tutorial-cond-2'>Replay "if" Tutorial</button>
+                    <button id='replay-tutorial-all'>Replay Entire Tutorial</button>
+                </div>
+                <div id="equiv_ex" style='display: none'>The equivalence operator. Example: i <=> j checks if i is logically equivalent to j</div>
+                      
+                </h5>
+                </div>
+          <div id="report_problem_row" class="centered">
+            <a id="report_problem" href="#">Report a Problem</a>
+          </div>
+        </div>
+        <div class='row-md-6'>
+
+          <div class='col-md-8' id='hint-col'>
+          </div>
+
+          <!-- <div class='row'> -->
+          <!--   <div class='col-md-6 gap'> -->
+          <!--     <img id='help' src="help-icon.png" class='help-icon' data-toggle="tooltip" title="Click to toggle help options"/> -->
+          <!--     <div id='help-content' class='helpContentWindow box'> -->
+          <!--       <span id='replay' class='helpContent' data-toggle="tooltip" title="Click to play the tutorial again">Replay tutorial</span> -->
+          <!--       <br> -->
+          <!--       <span id='arrows' class='helpContent' data-toggle="tooltip" title="Click to view the layout introduction">Understand screen layout</span> -->
+          <!--       <br> -->
+          <!--     </div> -->
+          <!--   </div> -->
+          <!-- </div> -->
+
+        </div>
+      </div>
+
+      <div class='col-md-3' >
+        <div id='score-div-row' class='row positioned box progressWindow'>
+          <div class='col-md-2'>Score: </div>
+          <div id='score-div' class='col-md-7 col-md-offset-3'>
+          </div>
+        </div>
+        <div class='row good centered positioned' id='discovered-invariants-div'>
+        </div>
+        <div class='row ' id='quit-div'>
+          <button id='quit' class='btn-quit'>Quit</button>
+          <button id='skip-to-next-lvl' class='btn-next' style='display: none;'>Next Lvl</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="problem_screen" class="overlay" style="display:none">
+    <div class="container text-center">
+      <h1 class="good">Report a Problem</h1>
+      <form id="problem_form" action="">
+        <fieldset class="form-group">
+          <label for="problem_input">Please enter a description of the problem
+          and click send. We'll look into it as soon as possible.</label>
+          <textarea id="problem_input" name="problem_input"
+            class="form-control" rows="2"></textarea>
+        </fieldset>
+        <div id="problem_form_error" class="highlight"></div>
+        <button id="problem_send" class="btn-next">Send</button>
+        <button id="problem_close" class="btn-next">Cancel</button>
+      </form>
+    </div>
+  </div>
+  <div class='overlay text-center' style='display: none;' id='tutorial-video'>
+     <center>
+       <video width="75%" controls>
+         <source src="http://cseweb.ucsd.edu/~lerner/if-tutorial.mp4" type="video/mp4">
+           Your browser does not support the video tag.
+       </video>
+    </center>
+    <button id='tutorial-video-done' class='btn-next'>Return to Game</button>
+  </div> 
+  <div class='overlay text-center' style='display: none;' id='next-or-quit-screen'>
+    <h1 class='good'> Good job, you finished another level!</h1>
+    <div id='next-or-quit-additional-text'></div>
+    <button id='next-level-overlay' class='btn-next'>Next Level</button>
+    <button id='quit-overlay' class='btn-next'>Quit</button>
+  </div> 
+  <div class='overlay' style='display: none;' id='done-screen'>
+    <div class="container">
+      <h2 class='text-center'>Please answer a few questions and click on Finish HIT below.(* means required) </h2>
+      <form action="" id="turk-form">
+        <label class="statement fun">This session was fun to play.*</label>
+        <ul class='likert'>
+          <li>
+            <input type="radio" name="fun" value="5">
+            <label>Strongly agree</label>
+          </li>
+          <li>
+            <input type="radio" name="fun" value="4">
+            <label>Agree</label>
+          </li>
+          <li>
+            <input type="radio" name="fun" value="3">
+            <label>Neutral</label>
+          </li>
+          <li>
+            <input type="radio" name="fun" value="2">
+            <label>Disagree</label>
+          </li>
+          <li>
+            <input type="radio" name="fun" value="1">
+            <label>Strongly disagree</label>
+          </li>
+        </ul>
+        <label class="statement challenging">This session was challenging.*</label>
+        <ul class='likert'>
+          <li>
+            <input type="radio" name="challenging" value="5">
+            <label>Strongly agree</label>
+          </li>
+          <li>
+            <input type="radio" name="challenging" value="4">
+            <label>Agree</label>
+          </li>
+          <li>
+            <input type="radio" name="challenging" value="3">
+            <label>Neutral</label>
+          </li>
+          <li>
+            <input type="radio" name="challenging" value="2">
+            <label>Disagree</label>
+          </li>
+          <li>
+            <input type="radio" name="challenging" value="1">
+            <label>Strongly disagree</label>
+          </li>
+        </ul>
+        <label class="statement prog_experience">What is your level of expertise in programming?*</label>
+        <ul class='likert'>
+          <li>
+            <input type="radio" name="prog_experience" value="1">
+            <label>None</label>
+          </li>
+          <li>
+            <input type="radio" name="prog_experience" value="2">
+            <label>Novice</label>
+          </li>
+          <li>
+            <input type="radio" name="prog_experience" value="3">
+            <label>Intermediate</label>
+          </li>
+          <li>
+            <input type="radio" name="prog_experience" value="4">
+            <label>Advanced</label>
+          </li>
+          <li>
+            <input type="radio" name="prog_experience" value="5">
+            <label>Professional</label>
+          </li>
+        </ul>
+        <label class="statement math_experience">What is the highest education level, at which you took a math course?*</label>
+        <ul class='likert'>
+          <li>
+            <input type="radio" name="math_experience" value="1">
+            <label>Middle-school or less (class &lt;9)</label>
+          </li>
+          <li>
+            <input type="radio" name="math_experience" value="2">
+            <label>High-school (class 9-12)</label>
+          </li>
+          <li>
+            <input type="radio" name="math_experience" value="3">
+            <label>Bachelors</label>
+          </li>
+          <li>
+            <input type="radio" name="math_experience" value="4">
+            <label>Masters</label>
+          </li>
+          <li>
+            <input type="radio" name="math_experience" value="5">
+            <label>PhD</label>
+          </li>
+        </ul>
+        <fieldset class="form-group">
+          <label for="likes_input">Any comments? Likes, Dislikes?</label>
+          <textarea name="likes" class="form-control" rows="2" id="likes_input"></textarea>
+        </fieldset>
+        <input type="hidden" name="assignmentId" id="assignment-id-in-form" value="">
+        <div class='highlight' id='turk-form-error'> </div>
+        <button id="final-submit" class="btn-next">Finish HIT</button>
+      </form>
+    </div>
+  </div> 
+</body>
+</html>

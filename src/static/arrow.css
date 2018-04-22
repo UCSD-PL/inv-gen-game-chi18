@@ -1,0 +1,95 @@
+:root {
+  --arrow-col:  blue;
+}
+.arrow_down {
+  position: relative;
+}
+
+.arrow_down::before,
+.arrow_down::after {
+  position: relative;
+  content: '';
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--arrow-col);
+}
+
+.arrow_down::before {
+  transform: rotate(45deg);
+}
+
+.arrow_down::after {
+  left: 14px;
+  transform: rotate(-45deg);
+}
+
+.arrow_up {
+  position: relative;
+}
+
+.arrow_up::before,
+.arrow_up::after {
+  position: relative;
+  content: '';
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--arrow-col);
+}
+
+.arrow_up::before {
+  transform: rotate(-45deg);
+}
+
+.arrow_up::after {
+  top: -1px;
+  left: 13px;
+  transform: rotate(45deg);
+}
+
+.arrow_left {
+  position: relative;
+}
+
+.arrow_left::before,
+.arrow_left::after {
+  position: relative;
+  content: '';
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--arrow-col);
+}
+
+.arrow_left::before {
+  transform: rotate(-45deg);
+}
+
+.arrow_left::after {
+  top: 11.5px;
+  transform: rotate(45deg);
+}
+
+.arrow_right {
+  position: relative;
+}
+
+.arrow_right::before,
+.arrow_right::after {
+  position: relative;
+  content: '';
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--arrow-col);
+}
+
+.arrow_right::before {
+  transform: rotate(45deg);
+}
+
+.arrow_right::after {
+  top: 12px;
+  transform: rotate(-45deg);
+}

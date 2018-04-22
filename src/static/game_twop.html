@@ -1,0 +1,904 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- third party libraries -->
+  <script src="jquery-1.12.0.min.js"></script>
+  <script src="jquery.jsonrpcclient.js"></script>
+  <script src="jquery.color-2.1.2.min.js"></script>
+  <script src="jquery-ui-1.11.4/jquery-ui.js"></script>
+  <script src="esprima.js"></script>
+  <link rel="stylesheet" href="bootstrap.min.css">
+  <link rel="stylesheet" href="bootstrap-theme.min.css">
+  <script src="bootstrap.min.js"></script>
+
+  <!-- our code -->
+  <link rel="stylesheet" href="inv.css">
+  <link rel="stylesheet" href="arrow.css">
+  <script src="build/ts/gameLogic.js"></script>
+  <script src="build/ts/container.js"></script>
+  <script src="build/ts/powerups.js"></script>
+  <script src="build/ts/traceWindow.js"></script>
+  <script src="build/ts/stickyWindow.js"></script>
+  <script src="build/ts/progressWindow.js"></script>
+  <script src="build/ts/scoreWindow.js"></script>
+  <script src="build/ts/curvedarrow.js"></script>
+  <script src="build/ts/bonus.js"></script>
+  <script src="build/ts/logic.js"></script>
+  <script src="build/ts/eval.js"></script>
+  <script src="build/ts/level.js"></script>
+  <script src="build/ts/pp.js"></script>
+  <script src="build/ts/util.js"></script>
+
+  <script>
+    var stepTimeout = 5000;
+
+    var curLvl;
+    var curLvlSet;
+    var lvls = null;
+    var tracesW = null, progW = null, scoreW = null;
+    var gameLogic = null;
+    var lvlPassed = null;
+
+    var curLvl2;
+    var curLvlSet2;
+    var lvls2 = null;
+    var tracesW2 = null, progW2 = null, scoreW2 = null;
+    var gameLogic2 = null;
+    var lvlPassed2 = null;
+
+    var curLvlCompleted = null;
+    var curLvlCompleted2 = null;
+
+    var player = 1;
+
+    var player1Done = false;
+    var player2Done = false;
+
+    var allowSwitch = true;
+
+    disableBackspaceNav();
+
+    var allowBonus = true;
+
+    function loadTrace(traceId) {
+      Level.load(curLvlSet, traceId, function(lvl) {
+        gameLogic.loadLvl(lvl);
+
+        if(gameLogic.showNext(lvl)) {
+          $('#next-lvl').show();
+        }
+        else {
+          $('#next-lvl').hide();
+        }
+      })
+    }
+
+    function loadTrace2(traceId) {
+      Level.load(curLvlSet2, traceId, function(lvl) {
+        gameLogic2.loadLvl(lvl);
+
+        if(gameLogic2.showNext(lvl)) {
+          $('#next-lvl2').show();
+        }
+        else {
+          $('#next-lvl2').hide();
+        }
+      })
+    }
+
+    function nextLvl() {
+      lvlPassed[curLvl] = true;
+      player1Done = false;
+      loadLvl(curLvl + 1);
+    }
+
+    function nextLvl2() {
+      lvlPassed2[curLvl2] = true;
+      player2Done = false;
+      loadLvl2(curLvl2 + 1);
+    }
+
+    function loadLvl(lvl) {
+      if (lvl == lvls.length) {
+        doneScreen();
+      } else {
+        if (typeof(lvls[curLvl]) == "string") {
+          $('#lvl_' + lvls[curLvl]).removeClass('bold');
+          $('#lvl_' + lvls[curLvl]).removeClass('currentLevel');
+          //$('#lvl_' + lvls[curLvl]).parent().removeClass('currentLevel');
+          if (lvlPassed[curLvl] != false) {
+            //$('#lvl_' + lvls[curLvl]).parent().addClass('completedLevel');
+            $('#lvl_' + lvls[curLvl]).addClass('completedLevel');
+          }
+          else {
+            //$('#lvl_' + lvls[curLvl]).parent().addClass('pending');
+            $('#lvl_' + lvls[curLvl]).addClass('pending');
+          }
+        }
+
+        curLvl = lvl;
+        if (typeof(lvls[lvl]) == "string") {
+          $('#lvl_' + lvls[curLvl]).addClass('bold');
+          $('#lvl_' + lvls[curLvl]).addClass('currentLevel');
+          //$('#lvl_' + lvls[curLvl]).parent().addClass('currentLevel');
+        }
+
+        if (lvl == lvls.length - 1) {
+          $('#next-lvl').html('Finish');
+        }
+
+        if (typeof(lvls[lvl]) == "string") {
+          loadTrace(lvls[curLvl]);
+        } else {
+          gameLogic.loadLvl(lvls[curLvl])
+        }
+      }
+    }
+
+    function loadLvl2(lvl) {
+      if (lvl == lvls2.length) {
+        doneScreen();
+      } else {
+        if (typeof(lvls2[curLvl2]) == "string") {
+          $('#lvl2_' + lvls2[curLvl2]).removeClass('bold');
+          $('#lvl2_' + lvls2[curLvl2]).removeClass('currentLevel');
+          //$('#lvl2_' + lvls2[curLvl2]).parent().removeClass('currentLevel');
+          if (lvlPassed2[curLvl2] != false) {
+            //$('#lvl2_' + lvls2[curLvl2]).parent().addClass('completedLevel');
+            $('#lvl2_' + lvls2[curLvl2]).addClass('completedLevel');
+          }
+          else {
+            //$('#lvl2_' + lvls2[curLvl2]).parent().addClass('pending');
+            $('#lvl2_' + lvls2[curLvl2]).addClass('pending');
+          }
+        }
+
+        curLvl2 = lvl;
+        if (typeof(lvls2[lvl]) == "string") {
+          $('#lvl2_' + lvls2[curLvl2]).addClass('bold');
+          //$('#lvl2_' + lvls2[curLvl2]).parent().addClass('currentLevel');
+          $('#lvl2_' + lvls2[curLvl2]).addClass('currentLevel');
+        }
+
+        if(gameLogic2.showNext(lvls2[curLvl2])) {
+          $('#next-lvl2').show();
+        }
+
+        if (lvl == lvls2.length - 1) {
+          $('#next-lvl2').html('Finish');
+        }
+
+        if (typeof(lvls2[lvl]) == "string") {
+          loadTrace2(lvls2[curLvl2]);
+        } else {
+          gameLogic2.loadLvl(lvls2[curLvl2]);
+        }
+      }
+    }
+
+    function loadLvlSet(lvlset) {
+      curLvlSet = lvlset;
+
+      res = rpc.call('App.listData', [lvlset], function(res) {
+        lvls = res;
+        lvlPassed = new Array(res.length);
+        for (var i = 0; i < res.length; ++i) { lvlPassed[i] = false; }
+        hstr = '<ul class="levels">';
+        for (var i in res) {
+          // hstr += '<li class="level pending">' + '<a class="loadLvl" id="lvl_' + res[i] + '" >' + i + '</a>' + '</li>';
+          hstr += '<li class="level pending" id="lvl_' + res[i] + '" >' + i + '</li>';
+        }
+        hstr += '</ul>';
+        $('#traces-menu').html(hstr);
+
+        $('.loadLvl').click(function (evt) {
+          loadLvl(lvls.indexOf(this.id.substring(4)));
+          loadLvl2(lvls2.indexOf(this.id.substring(4)));
+        });
+        curLvl = -1;
+        nextLvl();
+      }, log)
+    }
+
+    function loadLvlSet2(lvlset) {
+      curLvlSet2 = lvlset;
+
+      res = rpc.call('App.listData', [lvlset], function(res) {
+        lvls2 = res;
+        lvlPassed2 = new Array(res.length);
+        for (var i = 0; i < res.length; ++i) { lvlPassed2[i] = false; }
+        hstr = '<ul class="levels">';
+        for (var i in res) {
+          // hstr += '<li class="level pending">' + '<a class="loadLvl" id="lvl2_' + res[i] + '" >' + i + '</a>' + '</li>';
+          hstr += '<li class="level pending" id="lvl2_' + res[i] + '" >' + i + '</a>' + '</li>';
+        }
+        hstr += '</ul>';
+        $('#traces-menu2').html(hstr);
+
+        $('.loadLvl').click(function (evt) {
+          loadLvl(lvls.indexOf(this.id.substring(4)));
+          loadLvl2(lvls2.indexOf(this.id.substring(4)));
+        });
+        curLvl2 = -1;
+        nextLvl2();
+      }, log)
+    }
+
+    function doneScreen() {
+      var score1 = gameLogic.score;
+      var score2 = gameLogic2.score;
+
+      var result = "<br>Player 1: " + score1 + " points<br>Player 2: " + score2
+                    + " points<br><br>";
+
+      if(score1 > score2) {
+        result += "Winner: Player 1"
+      }
+      else if(score2 > score1) {
+        result += "Winner: Player 2"
+      }
+      else {
+        result += "It's a tie"
+      }
+
+      $(".overlay").html("<h1 class='good'>Good job!<br>" +
+        result  + "!</h1><br>" +
+        "<h2> Please submit the screencast of your work! </h2>"
+      );
+      $(".overlay").fadeIn(1000);
+    }
+
+    function labelRemover(lbl) {
+      return function () { removeLabel(lbl); }
+    }
+
+    /*
+    function loadTrace(traceId) {
+      res = rpc.call('App.getData', [ curLvlSet, traceId ], function(res) {
+        data = res;
+        curGoal = data.goal;
+        goalSatisfied(curGoal, jsfound, function(newProgress) {progress = newProgress});
+
+        gameLogic.loadLvl(data)
+
+        if (showNext(curGoal)) {
+          //player1Done = true;
+
+          //if(player2Done) {
+            $('#next-lvl').show();
+          //}
+        }
+        else {
+          //player1Done = false;
+          $('#next-lvl').hide();
+        }
+
+        if(curGoal.manual) {
+          player1Done = true;
+          $('#next-lvl').show();
+        }
+      }, log)
+    }
+
+    function loadTrace2(traceId) {
+      res = rpc.call('App.getData', [ curLvlSet2, traceId ], function(res) {
+        data = res;
+        curGoal2 = data.goal;
+        goalSatisfied(curGoal2, jsfound2, function(newProgress)
+                                          {
+                                            progress = newProgress
+                                          }
+                      );
+
+        gameLogic2.loadLvl(data)
+
+        if (showNext(curGoal2)) {
+          //player2Done = true;
+          //if(player1Done) {
+            $('#next-lvl2').show();
+          //}
+        }
+        else {
+          //player2Done = false;
+          $('#next-lvl2').hide();
+        }
+
+        if(curGoal2.manual) {
+          player2Done = true;
+          $('#next-lvl2').show();
+        }
+      }, log)
+    }
+
+    function nextLvl() {
+      lvlPassed[curLvl] = true;
+      player1Done = false;
+      loadLvl(curLvl + 1);
+    }
+
+    function nextLvl2() {
+      lvlPassed2[curLvl2] = true;
+      player2Done = false;
+      loadLvl2(curLvl2 + 1);
+    }
+
+    function loadLvl(lvl) {
+      jsfound = []
+      $('#lvl_' + lvls[curLvl]).removeClass('bold');
+      $('#lvl_' + lvls[curLvl]).removeClass('currentLevel');
+
+      if(lvlPassed[curLvl] == true) {
+        $('#lvl_' + lvls[curLvl]).parent().addClass('completedLevel');
+      }
+      else {
+        $('#lvl_' + lvls[curLvl]).parent().removeClass('completedLevel');
+        $('#lvl_' + lvls[curLvl]).parent().removeClass('currentLevel');
+        $('#lvl_' + lvls[curLvl]).parent().addClass('pending');
+      }
+
+      curLvl = lvl;
+      $('#lvl_' + lvls[curLvl]).addClass('bold');
+      $('#lvl_' + lvls[curLvl]).parent().removeClass('completedLevel');
+      $('#lvl_' + lvls[curLvl]).parent().addClass('currentLevel');
+
+      if (lvl == lvls.length) {
+        return doneScreen();
+      }
+      else {
+        if (lvl == lvls.length - 1) {
+          $('#next-lvl').html('Finish');
+        }
+        loadTrace(lvls[curLvl]);
+      }
+    }
+
+    function loadLvl2(lvl) {
+      jsfound2 = []
+      $('#lvl2_' + lvls2[curLvl2]).removeClass('bold');
+      $('#lvl2_' + lvls2[curLvl2]).removeClass('currentLevel');
+
+      if(lvlPassed2[curLvl2] == true) {
+        $('#lvl2_' + lvls2[curLvl2]).parent().addClass('completedLevel');
+      }
+      else {
+        $('#lvl2_' + lvls2[curLvl2]).parent().removeClass('completedLevel');
+        $('#lvl2_' + lvls2[curLvl2]).parent().removeClass('currentLevel');
+        $('#lvl2_' + lvls2[curLvl2]).parent().addClass('pending');
+      }
+
+      curLvl2 = lvl;
+      $('#lvl2_' + lvls2[curLvl2]).addClass('bold');
+      $('#lvl2_' + lvls2[curLvl2]).parent().removeClass('completedLevel');
+      $('#lvl2_' + lvls2[curLvl2]).parent().addClass('currentLevel');
+
+      if (lvl == lvls2.length) {
+        return doneScreen();
+      }
+      else {
+        if (lvl == lvls2.length - 1) {
+          $('#next-lvl2').html('Finish');
+        }
+        loadTrace2(lvls2[curLvl2]);
+      }
+    }
+
+
+    function loadLvlSet(lvlset) {
+      curLvlSet = lvlset;
+      res = rpc.call('App.listData', [lvlset], function(res) {
+        lvls = res;
+
+        // Keep track of which levels were cleared
+        lvlPassed = new Array(res.length);
+        for (var i = 0; i < res.length; ++i) { lvlPassed[i] = false; }
+
+        hstr = '<ul class="levels">';
+        for (var i in res) {
+          hstr += '<li class="level pending">' + '<a class="loadLvl" id="lvl_'
+                  + res[i] + '" >' + i + '</a>' + '</li>';
+        }
+        hstr += '</ul>';
+
+        $('#traces-menu').html(hstr);
+
+
+        $('.loadLvl').click(function (evt) {
+          loadLvl(lvls.indexOf(this.id.substring(4)));
+          loadLvl2(lvls2.indexOf(this.id.substring(4)));
+        });
+
+
+        curLvl = -1;
+        nextLvl();
+      }, log)
+    }
+
+    function loadLvlSet2(lvlset) {
+      curLvlSet2 = lvlset;
+      res = rpc.call('App.listData', [lvlset], function(res) {
+        lvls2 = res;
+
+        // Keep track of which levels were cleared
+        lvlPassed2 = new Array(res.length);
+        for (var i = 0; i < res.length; ++i) { lvlPassed2[i] = false; }
+
+        hstr = '<ul class="levels">';
+        for (var i in res) {
+          hstr += '<li class="level pending">' + '<a class="loadLvl" id="lvl2_'
+                  + res[i] + '" >' + i + '</a>' + '</li>';
+        }
+        hstr += '</ul>';
+
+        $('#traces-menu2').html(hstr);
+
+
+        $('.loadLvl').click(function (evt) {
+          loadLvl(lvls.indexOf(this.id.substring(4)));
+          loadLvl2(lvls2.indexOf(this.id.substring(4)));
+        });
+
+
+        curLvl2 = -1;
+        nextLvl2();
+      }, log)
+    }
+
+
+    function doneScreen() {
+      var score1 = gameLogic.score();
+      var score2 = gameLogic2.score();
+      var result = "<p style='color: white; vertical-align: bottom'>\
+                    WOW! Such game! Much Points!\
+                    <br>"
+
+      if(score1 > score2) {
+        result += "Winner: Player 1"
+      }
+      else if(score2 > score1) {
+        result += "Winner: Player 2"
+      }
+      else {
+        result += "It's a tie!"
+      }
+
+      $("#final-score").html(result);
+      $("#doge").fadeIn();
+    }
+    */
+
+
+    var tutorialScript = [
+      {
+        setup: function (cs) {
+                 cs.nextStepOnKeyClickOrTimeout(1000, () => {}, 0);
+               }
+      },
+      {
+        setup: function (cs) {
+                 var curL = label($('#help'),
+                            "Click here if you need any help later",
+                            "right")
+                 $('body').focus();
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32);
+               }
+      },
+      { setup: function (cs) {
+                 $('#formula-entry').focus();
+               }
+      },
+    ]
+
+
+    var hidePlayer1 = function() {
+      $('#left').hide();
+      $('#sticky').hide();
+      $('#data-display').hide();
+      $('#traces-menu').hide();
+      $('#hint-col').hide();
+      $('#btn-switch').hide();
+    }
+
+    var hidePlayer2 = function() {
+      $('#left2').hide();
+      $('#sticky2').hide();
+      $('#data-display2').hide();
+      $('#traces-menu2').hide();
+      $('#hint-col2').hide();
+      $('#btn-switch2').hide();
+    }
+
+    var showPlayer1 = function() {
+      $('#curPlayer').html('1');
+      $('#left').show();
+      $('#sticky').show();
+      $('#data-display').show();
+      $('#score-div-row').show();
+      $('#discovered-invariants-div').show();
+      $('#traces-menu').show();
+      $('#hint-col').show();
+      $('#btn-switch').show();
+
+      if(curLvlCompleted == curLvl) {
+          $('#next-lvl').show();
+      }
+
+      //$('#next-lvl').show();
+      //$('#next-lvl2').show();
+
+      if(player1Done || player2Done) {
+        $('#next-lvl').show();
+        $('#next-lvl2').show();
+      }
+    }
+
+    var showPlayer2 = function() {
+      $('#curPlayer').html('2');
+      $('#left2').show();
+      $('#sticky2').show();
+      $('#data-display2').show();
+      $('#score-div-row2').show();
+      $('#discovered-invariants-div2').show();
+      $('#traces-menu2').show();
+      $('#hint-col2').show();
+      $('#btn-switch2').show();
+
+      if(curLvlCompleted2 == curLvl2) {
+          $('#next-lvl2').show();
+      }
+
+      //$('#next-lvl').show();
+      //$('#next-lvl2').show();
+
+      if(player1Done || player2Done) {
+        $('#next-lvl').show();
+        $('#next-lvl2').show();
+      }
+    }
+
+    var switchPlayer = function() {
+      $('#help-content').slideUp(200);
+      traceW.clearError();
+      traceW2.clearError();
+
+      if(!allowSwitch) {
+        return;
+      }
+
+      if(player == 1) {
+        traceW.enable();
+        hidePlayer2();
+        showPlayer1();
+
+        $("#pnum").removeClass("player2")
+        $("#pnum").addClass("player1")
+
+        $("#formula-entry").focus();
+      }
+      else if(player == 2) {
+        traceW2.enable();
+        hidePlayer1();
+        showPlayer2();
+
+        $("#pnum").removeClass("player1")
+        $("#pnum").addClass("player2")
+
+        $("#formula-entry2").focus();
+      }
+    }
+
+
+    $(document).ready(function() {
+      rpc = new $.JsonRpcClient({ ajaxUrl: "/api" })
+
+      progW = new TwoPlayerProgressWindow(1, $('#discovered-invariants-div'));
+      scoreW = new TwoPlayerScoreWindow(1, $('#score-div'));
+      traceW = new TwoPlayerTracesWindow(1, $('#data-display'));
+      stickyW = new TwoPlayerStickyWindow(1, $('#sticky'))
+      gameLogic = new TwoPlayerGameLogic(1, traceW, progW, scoreW, stickyW);
+
+      progW2 = new TwoPlayerProgressWindow(2, $('#discovered-invariants-div2'));
+      scoreW2 = new TwoPlayerScoreWindow(2, $('#score-div2'));
+      traceW2 = new TwoPlayerTracesWindow(2, $('#data-display2'));
+      stickyW2 = new TwoPlayerStickyWindow(2, $('#sticky2'))
+      gameLogic2 = new TwoPlayerGameLogic(2, traceW2, progW2, scoreW2, stickyW2);
+
+      $('#hints').hide();
+      $('#next-lvl').hide();
+      $('#hint-col').show();
+      $('#hint').html('');
+
+      $('#hints2').hide();
+      $('#next-lvl2').hide();
+      $('#hint-col2').show();
+      $('#hint2').html('');
+
+      if(player = 1) {
+        $('#hint-col').show();
+        $('#hint-col2').hide();
+        $('#btn-switch').show();
+        $('#btn-switch2').hide();
+      }
+      else if(player = 2) {
+        $('#hint-col').hide();
+        $('#hint-col2').show();
+        $('#btn-switch').hide();
+        $('#btn-switch2').show();
+      }
+
+      gameLogic.onLvlPassed(function() {
+        curLvlCompleted = curLvl;
+        player1Done = true;
+
+        if(player1Done || player2Done) {
+          $('#next-lvl').show();
+          $('#next-lvl2').show();
+        }
+      });
+
+      gameLogic2.onLvlPassed(function() {
+        curLvlCompleted2 = curLvl2;
+        player2Done = true;
+
+        if(player1Done || player2Done) {
+          $('#next-lvl').show();
+          $('#next-lvl2').show();
+        }
+      });
+
+      $('#next-lvl').click(function() {
+        $('#next-lvl').hide();
+        $('#hint').html('');
+        $('#hints').hide();
+        $('#btn-hint').show();
+
+        $('#next-lvl2').hide();
+        $('#hint2').html('');
+        $('#hints2').hide();
+        $('#btn-hint2').show();
+
+        nextLvl();
+        nextLvl2();
+      })
+
+      $('#next-lvl2').click(function() {
+        $('#next-lvl').hide();
+        $('#hint').html('');
+        $('#hints').hide();
+        $('#btn-hint').show();
+
+        $('#next-lvl2').hide();
+        $('#hint2').html('');
+        $('#hints2').hide();
+        $('#btn-hint2').show();
+
+        nextLvl2();
+        nextLvl();
+      })
+
+      $('#btn-hint').click(function() {
+        $(this).hide();
+        $('#hints').show();
+        $('#hint').html(data.hint);
+      })
+
+      $('#btn-hint2').click(function() {
+        $(this).hide();
+        $('#hints2').show();
+        $('#hint2').html(data.hint);
+      })
+
+      $('#help').click(function() {
+        $('#help-content').slideToggle(200);
+        $('#ops').hide();
+      })
+
+      $('#replay').click(function() {
+        var win = window.open('tutorial_twop.html', '_blank');
+        win.focus();
+      })
+
+      $('#operator').click(function() {
+        $('#ops').slideToggle(200);
+      })
+
+      $('#btn-switch').click(function() {
+        player = 2;
+        switchPlayer();
+      })
+
+      $('#btn-switch2').click(function() {
+        player = 1;
+        switchPlayer();
+      })
+
+      loadLvlSet("pruned-intro-benchmarks");
+      loadLvlSet2("pruned-intro-benchmarks");
+
+      var curScript = new Script(tutorialScript);
+    })
+
+  </script>
+</head>
+
+<body>
+  <div class='container'>
+    <div class='row'>
+      <div class='row centered title' id='top'>
+        InvGen: Two-Player
+        <hr>
+      </div>
+
+      <div class='row centered player player1' id='pnum'>
+        Player: <span id='curPlayer'>1</span>
+          <span id='next_move'>
+            <button id='btn-switch' class='btn-show-hint1'>Pass</button>
+          </span>
+          <span id='next_move2'>
+            <button id='btn-switch2' class='btn-show-hint2'>Pass</button>
+          </span>
+      </div>
+
+      <div class='col-md-1' id='left'>
+        <p style='font-weight: bold; text-align: center; padding-top: 13px;'>
+          Level
+        </p>
+        <div  id='traces-menu'> </div>
+      </div>
+
+      <div class='col-md-1' id='left2' style='display: none'>
+        <p style='font-weight: bold; text-align: center; padding-top: 13px;'>
+          Level
+        </p>
+        <div  id='traces-menu2' style='display: none'> </div>
+      </div>
+
+      <div class='col-md-1 box stickyWindow' id='sticky'>
+      </div>
+
+      <div class='col-md-1 box stickyWindow' id='sticky2' style="display:none;">
+      </div>
+
+      <div class='col-md-6' id='middle'>
+        <div class='row' id='data-display' style="font-family:monospace;">
+        </div>
+
+        <div class='row' id='data-display2'
+              style="font-family:monospace; display:none;">
+        </div>
+
+        <div class='row-md-8'>
+          <div class='col-md-8' id='hint-col'>
+            <span id='next_lvl_span'>
+              <button id='next-lvl' class='btn-next-game'>Next Level</button>
+            </span>
+          </div>
+
+          <div class='col-md-8' id='hint-col2'>
+            <span id='next_lvl_span2'>
+              <button id='next-lvl2' class='btn-next-game'>Next Level</button>
+            </span>
+          </div>
+
+          <div class='row'>
+            <div class='col-md-6 gap'>
+              <img id='help' src="help-icon.png" class='help-icon'
+                    data-toggle="tooltip" title="Click to toggle help options"/>
+              <div id='help-content' class='helpContentWindow box'>
+                <span id='replay' class='helpContent' data-toggle="tooltip"
+                      title="Click to play the tutorial again">
+                      Replay tutorial
+                </span>
+                <br>
+                <span id='operator' class='helpContent' data-toggle="tooltip"
+                      title="Click to toggle the list of operators">
+                      Available operators
+                </span>
+                <div id='ops' style="display: none;">
+                  <hr style="height:1px; padding:0px; margin:0px;">
+                  <table class='opTable'>
+                    <tr>
+                      <td class="centered" data-toggle="tooltip" title="The addition operator. Example: i + j returns the sum of i and j">
+                        +
+                      </td>
+                      <td class="centered" data-toggle="tooltip" title="The subtraction operator. Example: i - j subtracts j from i">
+                        -
+                      </td>
+                      <td class="centered" data-toggle="tooltip" title="The multiplication operator. Example: 3 * x multiplies x by 3">
+                        *
+                      </td>
+                      <td class="centered" data-toggle="tooltip" title="The division operator. Example: j / x divides j by x">
+                        /
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="centered" data-toggle="tooltip" title="The modulo operator. Example: i % 2 returns the remainder of division i by 2">
+                        %
+                      </td>
+                      <td class="centered" data-toggle="tooltip" title="The equality operator. Example: i = 2 checks if i is equal to 2">
+                        =
+                      </td>
+                      <td class="centered" data-toggle="tooltip" title="The non-equality operator. Example: i != 2 checks if i is not equal to 2">
+                        !=
+                      </td>
+                      <td class="centered" data-toggle="tooltip" title="The less than operator. Example: i < j checks if i is less than j">
+                        <
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="centered" data-toggle="tooltip" title="The less than or equal operator. Example: i <= j checks if i is less than or equal to j">
+                        <=
+                      </td>
+                      <td class="centered" data-toggle="tooltip" title="The greater than operator. Example: i > j checks if i is greater than j">
+                        >
+                      </td>
+                      <td class="centered" data-toggle="tooltip" title="The greater than or equal operator. Example: i >= j checks if i is greater than or equal to j">
+                        >=
+                      </td>
+                      <td class="centered" data-toggle="tooltip" title="The negation operator. Example: !(i = 3) returns the negation of the condition that i is 3">
+                        !
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="centered" data-toggle="tooltip" title="The conjunction operator. Example: (i=2) &amp;&amp; (j>0) will return true only if both i=2 and j>0">
+                        &amp;&amp;
+                      </td>
+                      <td class="centered" data-toggle="tooltip" title="The disjunction operator. Example: (i=2) || (j>0) will return true if even one of the two conditions is true">
+                        ||
+                      </td>
+                      <!--
+                      <td class="centered" data-toggle="tooltip" title="The implication operator. Example: i => j checks if i implies j">
+                        =>
+                      </td>
+                      <td class="centered" data-toggle="tooltip" title="The equivalence operator. Example: i <=> j checks if i is logically equivalent to j">
+                        <=>
+                      </td>
+                    -->
+                    </tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class='col-md-3'>
+
+        <div id='score-div-row' class='row positioned box progressWindow1'>
+          <div style='color: red;'>
+            <strong>Player 1</strong>
+          </div>
+          <div id='score-div' style='border-top-right-radius: 0px; border-top-left-radius: 0px; color: red;'>
+          </div>
+        </div>
+
+        <div class='row good centered positioned progressWindow1'
+            id='discovered-invariants-div'>
+        </div>
+
+        <hr>
+
+        <div id='score-div-row2' class='row positioned box progressWindow2'>
+          <div style='color: blue;'>
+            <strong>Player 2</strong>
+          </div>
+          <div id='score-div2' style='border-top-right-radius: 0px; border-top-left-radius: 0px; color: blue;'>
+          </div>
+        </div>
+
+        <div class='row good centered positioned progressWindow2'
+            id='discovered-invariants-div2'>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class='overlay text-center' style='display: none;'>
+  </div>
+
+</body>
+</html>

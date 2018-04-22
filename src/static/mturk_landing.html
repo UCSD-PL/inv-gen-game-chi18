@@ -1,0 +1,46 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script src="jquery-1.12.0.min.js"></script>
+  <script src="jquery.jsonrpcclient.js"></script>
+
+  <script src="build/ts/util.js"></script>
+
+  <script type="text/javascript">
+    function goto_consent() {
+      window.location.replace('consent.html' + window.location.search);
+    }
+    function goto_tut() {
+      window.location.replace('tutorial.html' + window.location.search);
+    }
+    function goto_game() {
+      window.location.replace('game.html' + window.location.search);
+    }
+    if (Args.get_assignment_id() === "ASSIGNMENT_ID_NOT_AVAILABLE") {
+      goto_tut();
+    }
+    else if (!Args.get_consent()) {
+      goto_consent();
+    }
+    else {
+      rpc = new $.JsonRpcClient({ ajaxUrl: "/api" });
+      rpc.call('App.getTutorialDone', [Args.get_worker_id()],
+        function (tutDone) {
+          if (tutDone)
+            goto_game();
+          else
+            goto_tut();
+        },
+        function (error) {
+          console.log("RPC error", error);
+        }
+      );
+    }
+  </script>
+</head>
+<body>
+</body>
+</html>

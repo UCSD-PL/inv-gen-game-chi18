@@ -1,0 +1,155 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- third party libraries -->
+  <script src="jquery-1.12.0.min.js"></script>
+  <script src="jquery.jsonrpcclient.js"></script>
+  <script src="jquery.color-2.1.2.min.js"></script>
+  <script src="jquery-ui-1.11.4/jquery-ui.js"></script>
+  <script src="esprima.js"></script>
+  <link rel="stylesheet" href="bootstrap.min.css">
+  <link rel="stylesheet" href="bootstrap-theme.min.css">
+  <script src="bootstrap.min.js"></script>
+
+  <!-- our code -->
+  <link rel="stylesheet" href="inv.css">
+  <link rel="stylesheet" href="arrow.css">
+  <script src="build/ts/container.js"></script>
+  <script src="build/ts/stickyWindow.js"></script>
+  <script src="build/ts/progressWindow.js"></script>
+  <script src="build/ts/scoreWindow.js"></script>
+  <script src="build/ts/logic.js"></script>
+  <script src="build/ts/traceWindow.js"></script>
+  <script src="build/ts/gameLogic.js"></script>
+  <script src="build/ts/level.js"></script>
+  <script src="build/ts/eval.js"></script>
+  <script src="build/ts/pp.js"></script>
+  <script src="build/ts/util.js"></script>
+  <script src="build/ts/powerups.js"></script>
+
+
+<script>
+
+// Given the ID of the assignmentId form field element, populate it
+// with the assignmentId parameter from the URL.  If no assignment ID
+// is present, inform the worker that the HIT is being previewed.
+
+function init() {
+    console.log(Args.get_hit_id());
+    console.log(Args.get_worker_id());
+    console.log(Args.get_assignment_id());
+    console.log(Args.get_turk_submit_to());
+    var turk_submit_to = Args.get_turk_submit_to();
+    var assignment_id = Args.get_assignment_id();
+    if (assignment_id == "ASSIGNMENT_ID_NOT_AVAILABLE") {
+        document.getElementById("main").innerHTML =
+           "<p><b>You are previewing this HIT.</b>  To perform this HIT, please accept it.</p>";
+        return;
+    }
+    if (assignment_id !== undefined) {
+        document.getElementById("assignment_id_field").value = assignment_id;
+    }
+    if (turk_submit_to !== undefined) {
+        document.getElementById("form").action = turk_submit_to + "/mturk/externalSubmit";
+    }
+}
+
+</script>
+
+</head>
+<body onload="init()">
+  <div class="container" id="main">
+      <fieldset>
+        <label>This game was fun to play. Select the option that is closest to your feelings:</label>
+        <div class="radio">
+          <label>
+            <input type="radio" name="fun" value="5">
+            Strongly Agree 
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="fun" value="4">
+            Agree
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="fun" value="3">
+            Neutral
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="fun" value="2">
+            Disagree
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="fun" value="1">
+            Strongly Disagree 
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <label>The game was challenging. Select the option that is closest to your feelings:</label>
+        <div class="radio">
+          <label>
+            <input type="radio" name="challenging" value="5">
+            Strongly Agree 
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="challenging" value="4">
+            Agree
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="challenging" value="3">
+            Neutral
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="challenging" value="2">
+            Disagree
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="challenging" value="1">
+            Strongly Disagree 
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-group">
+        <label for="likes_input">What did you like about the game?</label>
+        <textarea name="likes" class="form-control" rows="2" id="likes_input"></textarea>
+      </fieldset>
+      <fieldset class="form-group">
+        <label for="dislikes_input">What did you find confusing about the game?</label>
+        <textarea name="dislikes" class="form-control" rows="2" id="dislikes_input"></textarea>
+      </fieldset>
+      <fieldset class="form-group">
+        <label for="suggestions_input">Do have any suggestions on how to improve the game? If so, what are they?</label>
+        <textarea name="suggestions" class="form-control" rows="2" id="suggestions_input"></textarea>
+      </fieldset>
+      <fieldset class="form-group">
+        <label for="experience_input">So we can calibrate our results, please describe what programming experience you've had,
+        in particular what programming languages you've used and for how long. If no programming experience, just say None.</label>
+        <textarea name="experience" class="form-control" rows="2" id="experience_input"></textarea>
+      </fieldset>
+      <input type="hidden" name="assignmentId" id="assignment_id_field" value="">
+      <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+  </div>
+</body>
+</html>

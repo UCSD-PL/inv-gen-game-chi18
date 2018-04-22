@@ -1,0 +1,18 @@
+{
+  "maxActiveHits": 1,
+  "maxHitsPerHour": 1,
+  "experiments": [
+    {
+      "ename": "new-benchmarks",
+      "minFinishedPerLvl": 20,
+      "args": {
+        "lvlset": "../lvlsets/unsolved-new-benchmarks.lvlset",
+        "no_ifs": true,
+        "individual": true,
+        "maxlvls": 4,
+        "colSwap": true,
+        "replay": true
+      }
+    }
+  ]
+}

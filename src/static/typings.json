@@ -1,0 +1,9 @@
+{
+  "ambientDependencies": {
+    "esprima": "registry:dt/esprima#2.1.0+20160317120654",
+    "estree": "registry:dt/estree#0.0.0+20160317120654",
+    "jquery": "registry:dt/jquery#1.10.0+20160417213236",
+    "jquery-jsonrpcclient": "registry:dt/jquery-jsonrpcclient#0.0.0+20160316155526",
+    "jqueryui": "registry:dt/jqueryui#1.9.0+20160509160024"
+  }
+}

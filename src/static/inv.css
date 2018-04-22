@@ -1,0 +1,556 @@
+.error {
+  color: rgb(255, 0, 0);
+}
+
+.valid {
+  color: rgb(255, 0, 0);
+  /*color: rgb(255, 255, 0);*/
+}
+
+.warn {
+  color: rgb(204, 102, 0);
+  /*color: rgb(255, 255, 0);*/
+}
+
+.true {
+  background-color: rgba(0, 128, 0, 0.5);
+}
+
+.false {
+  background-color: rgba(255, 0, 0, 0.5);
+}
+
+.inductive {
+  background-color: rgb(207, 207, 207);
+}
+
+.bold {
+  font-weight: bold;
+}
+
+.implied {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+#hint {
+ font-weight: bold;
+}
+
+#hint2 {
+ font-weight: bold;
+}
+
+#hint-row {
+  color: rgb(0, 153,255);
+}
+
+.good {
+  color: green;
+}
+
+.centered {
+  vertical-align: middle;
+  text-align: center;
+}
+
+.spaced {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+#stage-container {
+  position: absolute;
+  top:  0px;
+  left: 0px;
+}
+
+.absolute {
+  position: absolute;
+  font-size:  20px;
+  font-weight:  bold;
+  color: blue;
+}
+
+.overlay  {
+  position: fixed;
+  background-color: rgb(255,255,255);
+  font-family: monospace;
+/* font-size:  20px;
+  font-weight:  bold;
+  color: blue; */
+  top:  0px;
+  left: 0px;
+  width:  100%;
+  height:  100%;
+  z-index:  9999;
+}
+
+.overlay_cover {
+  position: absolute;
+  width:  100%;
+  height: 100%;
+}
+
+.positioned {
+  position: relative;
+}
+
+.scoreWindow {
+  border-width: 1px;
+  border-style: solid;
+  border-color: #157d00;
+  vertical-align: middle;
+  background-color: rgb(125,242,127);
+  border-radius: 25px;
+  border-left: 0px;
+  border-bottom: 0px;
+  border-right: 0px;
+}
+
+.scoreWindow1 {
+  border-width: 1px;
+  border-style: solid;
+  border-color: red;
+  vertical-align: middle;
+  background-color: rgba(255,127,127,0.5);
+  border-radius: 25px;
+  border-left: 0px;
+  border-bottom: 0px;
+  border-right: 0px;
+}
+
+.scoreWindow2 {
+  border-width: 1px;
+  border-style: solid;
+  border-color: blue;
+  vertical-align: middle;
+  background-color: rgba(127,127,255,0.5);
+  border-radius: 25px;
+  border-left: 0px;
+  border-bottom: 0px;
+  border-right: 0px;
+}
+
+.scoreText {
+  font-size: 40px;
+  font-weight: bold;
+  color:  green;
+  text-align: center;
+}
+
+.scoreText1 {
+  font-size: 40px;
+  font-weight: bold;
+  color:  red;
+  text-align: center;
+}
+
+.scoreText2 {
+  font-size: 40px;
+  font-weight: bold;
+  color:  blue;
+  text-align: center;
+}
+
+.scoreFloat {
+  position: absolute;
+/*  top:  0px;
+  left: 150px; */
+}
+
+.progressWindow {
+  font-size: 25px;
+  border-color: #157d00;
+}
+
+.progressWindow ul {
+  font-family:  monospace;
+  list-style-type: none;
+  padding:  0px;
+  text-align: center;
+}
+
+.ignoreWindow {
+  font-size: 25px;
+  border-color: rgb(204, 102, 0);
+}
+
+.ignoreWindow ul {
+  font-family:  monospace;
+  list-style-type: none;
+  padding:  0px;
+  text-align: center;
+}
+
+.tracesWindow {
+  border-color: #f29408;
+  border-radius: 25px;
+}
+
+.tracesWindow1 {
+  border-color: red;
+  border-radius: 25px;
+}
+
+.tracesWindow2 {
+  border-color: blue;
+  border-radius: 25px;
+}
+
+.msgWindow {
+  border-color: #f29408;
+}
+
+.stickyWindow {
+  border-color: #f29408;
+}
+
+.stickyWindow1 {
+  border-color: red;
+}
+
+.stickyWindow2 {
+  border-color: blue;
+}
+
+.box {
+  border-width: 2px;
+  border-style: solid;
+  text-align: center;
+  vertical-align: middle;
+  margin: 4px;
+  border-radius: 25px;
+}
+
+.pwup {
+  position: relative;
+  width:  50px;
+  height: 50px;
+  font-size: 30px;
+  font-weight:  bold;
+  color:  green;
+  border-color: #157d00
+}
+
+.pwup1 {
+  position: relative;
+  width:  50px;
+  height: 50px;
+  font-size: 30px;
+  font-weight:  bold;
+  color:  red;
+  border-color: red
+}
+
+.pwup2 {
+  position: relative;
+  width:  50px;
+  height: 50px;
+  font-size: 30px;
+  font-weight:  bold;
+  color:  blue;
+  border-color: blue
+}
+
+.pwup-mul {
+  position: absolute;
+  top:  20px;
+  left: 20px;
+  font-size: 24px;
+  font-weight: bold;
+  font-family: "courier";
+  background-color: rgba(255,255,255,0.5);
+  color: red;
+}
+
+#doge {
+  position: fixed;
+  top:  100px;
+  left: 300px;
+}
+
+#final-score {
+  position: absolute;
+  top:200px;
+  left:0px;
+  font-size: 32px;
+  font-weight:  bold;
+  font-family:  "comic sans";
+}
+
+#formula-entry {
+  position: relative;
+  top:  -4px;
+}
+
+th {
+  border-bottom-style: solid;
+  border-bottom-color: black;
+  border-bottom-width: 1px;
+}
+
+.temp_expr_eval {
+  font-weight: bold;
+}
+
+.levels {
+  list-style-type:none;
+  padding: 0px;
+  text-align: center;
+  border-color: green;
+}
+
+.level {
+  background-color: rgb(255,255,255);
+  border-color: green;
+  border: 2px;
+  border-style: solid;
+  border-bottom: 0px;
+  font-size: 16px;
+  padding: 3px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.level:first-child {
+  border-bottom: solid;
+  border-bottom-color: green;
+  border-bottom-width: 0px;
+  border-top-right-radius: 15px;
+  border-top-left-radius: 15px;
+}
+
+.level:last-child {
+  border-bottom: solid;
+  border-bottom-color: green;
+  border-bottom-width: 2px;
+  border-bottom-right-radius: 15px;
+  border-bottom-left-radius: 15px;
+}
+
+.level:hover {
+  font-weight: bold;
+}
+
+.pending {
+  background-color: rgb(255,255,255);
+  border-color: green;
+}
+
+.btn-show-hint {
+  color: #ffffff;
+  font-size: 20px;
+  background: #f29408;
+  padding: 10px 20px 10px 20px;
+  text-decoration: none;
+  border-radius: 25px;
+}
+
+.btn-show-hint:hover {
+  background: #ffbf66;
+  text-decoration: none;
+}
+
+.btn-show-hint1 {
+  color: #ffffff;
+  font-size: 20px;
+  background: rgba(255,0,0,0.75);
+  padding: 10px 20px 10px 20px;
+  text-decoration: none;
+  border-radius: 25px;
+}
+
+.btn-show-hint1:hover {
+  background: rgba(255,0,0,0.5);
+  text-decoration: none;
+}
+
+.btn-show-hint2 {
+  color: #ffffff;
+  font-size: 20px;
+  background: rgba(0,0,255,0.6);
+  padding: 10px 20px 10px 20px;
+  text-decoration: none;
+  border-radius: 25px;
+}
+
+.btn-show-hint2:hover {
+  background: rgba(0,0,255,0.3);
+  text-decoration: none;
+}
+
+.btn-next {
+  color: #ffffff;
+  font-size: 20px;
+  background: #157d00;
+  padding: 10px 20px 10px 20px;
+  text-decoration: none;
+  border-radius: 25px;
+  width: 250px;
+  margin-bottom: 50px;
+}
+
+.btn-next:hover {
+  background: #55c23c;
+  text-decoration: none;
+}
+
+.btn-pass {
+  color: #ffffff;
+  font-size: 20px;
+  background: #f29408;
+  padding: 10px 20px 10px 20px;
+  border-radius: 25px;
+}
+
+.btn-pass:hover {
+  background: #ffbf66;
+}
+
+.loadLvl {
+  color: black;
+}
+
+.loadLvl:hover {
+  color: black;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.table {
+  font-size: 16px;
+  border-radius: 25px;
+}
+
+.wow {
+  position:absolute;
+  left:0; right:0;
+  top:0; bottom:0;
+  margin:auto;
+  max-width:100%;
+  max-height:100%;
+  overflow:auto;
+}
+
+.help-icon {
+  width: 32px;
+  height: 32px;
+  margin-top: 30px;
+}
+
+.gap {
+  float: right;
+  text-align: right;
+}
+
+.helpContentWindow {
+  border-width: 2px;
+  border-style: solid;
+  border-color: #f29408;
+  vertical-align: middle;
+  font-size: 16px;
+  padding: 3px;
+  display: none;
+}
+
+.helpContent {
+  font-weight: normal;
+}
+
+.helpContent:hover {
+  font-weight: bold;
+}
+
+.opTable {
+  width: 100%;
+}
+
+.opTable td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.opTable tr {
+  font-family: monospace;
+  font-size: 16px;
+  text-align: center;
+}
+
+.currentLevel {
+  font-weight: bold;
+  background-color: #f29408;
+}
+
+.completedLevel {
+  font-weight: normal;
+  background-color: rgb(125,242,127);
+}
+
+.greyed {
+  background-color: rgba(207, 207, 207, .5);
+}
+
+.btn-quit {
+  color: #ffffff;
+  font-size: 20px;
+  background: #157d00;
+  padding: 10px 20px 10px 20px;
+  text-decoration: none;
+  border-radius: 25px;
+}
+
+a {
+  cursor: pointer;
+}
+
+
+h1.likert-header {
+  padding-left:4.25%;
+  margin:20px 0 0;
+}
+form .statement {
+  display:block;
+  font-size: 14px;
+  font-weight: bold;
+  padding: 30px 0 0 4.25%;
+  margin-bottom:10px;
+}
+form .likert {
+  list-style:none;
+  width:100%;
+  margin:0;
+  padding: 0 0 35px;
+  display:block;
+  border-bottom:2px solid #efefef;
+}
+form .likert:last-of-type {border-bottom:0;}
+form .likert:before {
+  content: '';
+  position:relative;
+  top:11px;
+  left:9.5%;
+  display:block;
+  background-color:#efefef;
+  height:4px;
+  width:78%;
+}
+form .likert li {
+  display:inline-block;
+  width:19%;
+  text-align:center;
+  vertical-align: top;
+}
+form .likert li input[type=radio] {
+  display:block;
+  position:relative;
+  top:0;
+  left:50%;
+  margin-left:-6px;
+  
+}
+form .likert li label {width:100%;}
+
+.highlight {
+  color:  red;
+}

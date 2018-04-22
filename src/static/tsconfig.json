@@ -1,0 +1,66 @@
+{
+  "compilerOptions": {
+    "declaration": false,
+    "module": "amd",
+    "noImplicitAny": false,
+    "noLib": false,
+    "outDir": "build",
+    "preserveConstEnums": true,
+    "removeComments": true,
+    "rootDir": ".",
+    "suppressImplicitAnyIndexErrors": true,
+    "target": "es6"
+  },
+  "exclude": [
+    "typings/main.d.ts",
+    "typings/main"
+  ],
+  "filesGlob": [
+    "ts/*.ts",
+    "typings/browser/**",
+    "!typings/main/**",
+    "!typings/main.d.ts"
+  ],
+  "formatCodeOptions": {
+    "indentSize": 2,
+    "tabSize": 4,
+    "newLineCharacter": "\r\n",
+    "convertTabsToSpaces": true,
+    "insertSpaceAfterCommaDelimiter": true,
+    "insertSpaceAfterSemicolonInForStatements": true,
+    "insertSpaceBeforeAndAfterBinaryOperators": true,
+    "insertSpaceAfterKeywordsInControlFlowStatements": true,
+    "insertSpaceAfterFunctionKeywordForAnonymousFunctions": false,
+    "insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": false,
+    "placeOpenBraceOnNewLineForFunctions": false,
+    "placeOpenBraceOnNewLineForControlBlocks": false
+  },
+  "files": [
+    "ts/container.ts",
+    "ts/bonus.ts",
+    "ts/curvedarrow.ts",
+    "ts/eval.ts",
+    "ts/gameLogic.ts",
+    "ts/ctrexGameLogic.ts",
+    "ts/roundsGameLogic.ts",
+    "ts/level.ts",
+    "ts/logic.ts",
+    "ts/powerups.ts",
+    "ts/pp.ts",
+    "ts/progressWindow.ts",
+    "ts/rpc.ts",
+    "ts/scoreWindow.ts",
+    "ts/stickyWindow.ts",
+    "ts/traceWindow.ts",
+    "ts/ctrexTracesWindow.ts",
+    "ts/util.ts",
+    "typings/browser/ambient/esprima/index.d.ts",
+    "typings/browser/ambient/estree/index.d.ts",
+    "typings/browser/ambient/jquery-jsonrpcclient/index.d.ts",
+    "typings/browser/ambient/jquery/index.d.ts",
+    "typings/browser/ambient/jqueryui/index.d.ts"
+  ],
+  "atom": {
+    "rewriteTsconfig": true
+  }
+}

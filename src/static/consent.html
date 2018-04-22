@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script src="jquery-1.12.0.min.js"></script>
+  <script src="jquery.jsonrpcclient.js"></script>
+  <link rel="stylesheet" href="bootstrap.min.css">
+  <link rel="stylesheet" href="bootstrap-theme.min.css">
+  <script src="bootstrap.min.js"></script>
+  <link rel="stylesheet" href="inv.css">
+  <script src="build/ts/rpc.js"></script>
+  <script src="build/ts/util.js"></script>
+
+  <script type="text/javascript">
+    $(document).ready(function () {
+      if (Args.get_assignment_id() == "ASSIGNMENT_ID_NOT_AVAILABLE") {
+        $("#hit-preview-warning").show();
+      }
+
+      rpc = new $.JsonRpcClient({ ajaxUrl: "/api" });
+
+      $("#agree").click(function () {
+        var append = "";
+        if (!window.location.search) {
+          append = "?";
+        } else {
+          append = "&";
+        }
+        append += "consent=1";
+
+        logEvent("Consent", []).then(
+          function () {
+            window.location.replace("mturk_landing.html" +
+              window.location.search + append);
+          },
+          function () {
+            $("#agree-error").show();
+          }
+        );
+      });
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="row text-center" id="hit-preview-warning" style="display:none">
+      <p class="lead">
+        <strong>This is a preview, which only shows you the tutorial</strong>
+      </p>
+    </div>
+    <div class="row text-center" style="font-family:monospace">
+      <h1>
+        <strong>Welcome to <span class="good">InvGen</span>!</strong>
+      </h1>
+    </div>
+    <div class="row">
+      <p>You are being invited to participate in a research study titled
+      “Crowdsourced Software Engineering using Gamification”. This study is
+      being done by Professor Sorin Lerner, Professor William G. Griswold,
+      Graduate Student Dimitar Bounov and Graduate Student Anthony DeRossi
+      from the University of California - San Diego (UCSD).</p>
+
+      <p>The purpose of this research study is to understand if Software
+      Engineering tasks can be performed by users playing online games. If you
+      agree to take part in this study, you will be asked to play several
+      levels of an online game, and complete an online survey. The entire task
+      should take you about 20 minutes to complete. There will be
+      approximately 1,000 participants in this study.</p>
+
+      <p>There may or may not be any direct benefit to you from this research.
+      If there is a benefit to you, it could be that: (1) you may find the
+      game fun to play (2) you may get the satisfaction of contributing to a
+      “citizen sciences” project. The investigator(s), however, may learn more
+      about how Software Engineering tasks can be performed through online
+      games.</p>
+
+      <p>You will be paid $10/hour for participating in this study.</p>
+
+      <p>There are minimal risks associated with this research study. One
+      risk is the potential for fatigue or frustration while playing the game.
+      Although our ultimate goal is to provide a fun game to play, you may
+      still find the online game frustrating. You can stop the study at any
+      point, and we will have a “Quit” button prominently displayed at all
+      times during the game.</p>
+
+      <p>Another risk is the potential for the loss of confidentiality.
+      The data we collect about you will remain confidential. We will
+      remove all personally identifiable information in the data, specifically
+      your Mechanical Turk Worker ID and your Internet Protocol (IP) Address.
+      We will only use your Mechanical Turk Worker ID to process payments that
+      are due to you, after which we will remove it from our data. Under no
+      circumstances will we make your Mechanical Turk Worker ID or IP address
+      publicly available.</p>
+
+      <p>Research records will be kept confidential to the extent allowed by
+      law and may be reviewed by the UCSD Institutional Review Board.</p>
+
+      <p>Your participation in this study is completely voluntary and you can
+      withdraw at any time by simply quitting the game. You can also skip any
+      questions in the survey. Choosing not to participate or withdrawing will
+      result in no penalty or loss of benefits to which you are entitled.</p>
+
+      <p>If you have questions about this project or if you have a
+      research-related problem, you may contact the researcher(s), Sorin
+      Lerner (lerner@cs.ucsd.edu) and William G. Griswold (wgg@cs.ucsd.edu).
+      If you have any questions concerning your rights as a research subject,
+      you may contact the UCSD Human Research Protections Program Office at
+      1-858-246-HRPP (1-858-246-4777).</p>
+
+      <p>By clicking “You agree” below you are indicating that you are at
+      least 18 years old, have read this consent form, and agree to
+      participate in this research study. You may print a copy of this page
+      for your records.</p>
+    </div>
+    <div class="row text-center">
+      <div class="col-sm-offset-2 col-sm-4">
+        <div class="error" id="agree-error" style="display:none">
+          <big><strong>An error occurred. Please try again.</strong></big>
+        </div>
+        <button id="agree" class="btn-next">I Agree</button>
+      </div>
+      <div class="col-sm-4">
+        <big><strong>If you do not agree to these terms, please click "Return
+        HIT" at the top of the page.</strong></big>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

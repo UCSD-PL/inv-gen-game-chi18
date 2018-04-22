@@ -1,0 +1,858 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script src="jquery-1.12.0.min.js"></script>
+  <script src="jquery.jsonrpcclient.js"></script>
+  <script src="jquery.color-2.1.2.min.js"></script>
+  <script src="jquery-ui-1.11.4/jquery-ui.js"></script>
+  <link rel="stylesheet" href="bootstrap.min.css">
+  <link rel="stylesheet" href="bootstrap-theme.min.css">
+  <script src="bootstrap.min.js"></script>
+  <link rel="stylesheet" href="inv.css">
+  <link rel="stylesheet" href="arrow.css">
+  <script src="build/ts/container.js"></script>
+  <script src="build/ts/traceWindow.js"></script>
+  <script src="build/ts/ctrexTracesWindow.js"></script>
+  <script src="build/ts/stickyWindow.js"></script>
+  <script src="build/ts/powerups.js"></script>
+  <script src="build/ts/gameLogic.js"></script>
+  <script src="build/ts/progressWindow.js"></script>
+  <script src="build/ts/scoreWindow.js"></script>
+  <script src="build/ts/logic.js"></script>
+  <script src="build/ts/eval.js"></script>
+  <script src="build/ts/level.js"></script>
+  <script src="build/ts/pp.js"></script>
+  <script src="build/ts/rpc.js"></script>
+  <script src="build/ts/util.js"></script>
+  <script src="esprima.js"></script>
+
+  <script>
+    var errorDelay = 2000;
+    var fadeDelay = 500;
+    var errorTimer;
+    var jsfound = [];
+    var curLvl;
+    var tracesW = null, progW = null, scoreW = null, stickyW = null, gameLogic = null;
+    var curL = null, curL1 = null, curL2 = null;
+    var tempCb = null;
+    var stepTimeout = -1;
+    var pwups = []
+
+    disableBackspaceNav();
+
+    function keepItUp(res) {
+      if (res.find) {
+        prog = res.find
+        return "You found " + prog.found + " invariant(s)!Just " + (prog.total - prog.found) + " left!."
+      } else if (res.equivalent) {
+        prog = res.equivalent
+        return "You found " + prog.found + " invariant(s)!Just " + (prog.total - prog.found) + " left!."
+      }
+    }
+
+    function addSuccessfulInvariant(inv, safetyInv) {
+      try {
+        parsedInv = esprima.parse(invToJS(inv));
+      } catch (err) {
+        inv = safetyInv;
+        parsedInv = esprima.parse(invToJS(inv));
+      }
+      jsfound.push(invToJS(inv))
+      progW.addInvariant(inv, parsedInv);
+    }
+
+    function updateUI() {
+        $('#errormsg').html("")
+        var inv = invPP(tracesW.curExp().trim()).replace(/\s/g, "");
+        try {
+          var parsedInv = esprima.parse();
+        } catch (err) {
+          log("Error parsing: " + err)
+        }
+
+        if (inv.length == 0) {
+          tracesW.evalResult({ clear: true })
+          return;
+        }
+
+        if (tempCb != null)
+          tempCb(inv)
+
+        try {
+          res_pos = invEval(invToJS(inv), curLvl.variables, curLvl.data[0])
+          res_ind = invEval(invToJS(inv), curLvl.variables, curLvl.data[2])
+          res_ind = zip(res_ind.filter((_,i)=>i%2==0), res_ind.filter((_,i)=>i%2==1))
+          tracesW.evalResult({ data: [ res_pos, [], res_ind ]})
+        } catch (err) {
+          errorTimer = setTimeout(function() {
+            tracesW.evalResult({ clear: true })
+            $('#errormsg').html("<div class='error'> " + interpretError(err) + "</div>")
+          }, errorDelay)
+        }
+    }
+
+    function nextStepOnInvariant(curScript, invariant, destructor) {
+       tempCb = function(inv) {
+         if (inv == invariant) {
+           removeLabel(curL);
+           tempCb = null;
+           destructor();
+           curScript.nextStep();
+         }
+       }
+       $('#formula-entry').focus();
+    }
+
+    function nextStepOnGLInvariant(curScript, invariant, destructor, gl) {
+      gl.onUserInput(function(inv) {
+         if (inv == invariant) {
+           removeLabel(curL);
+           gl.onUserInput(function(inv) {})
+           destructor();
+           curScript.nextStep();
+         }
+       })
+    }
+
+    function labelRemover(lbl) {
+      return function () { removeLabel(lbl) }
+    }
+
+    var mainScript = [
+      { setup: function (cs) {
+                  $('.overlay').html("<h1>Welcome to the <span class='good'>InvGen</span> Tutorial!<br> You can press spacebar or click anywhere<br>to proceed to the next step.</h1>")
+                  if (Args.get_assignment_id() == "ASSIGNMENT_ID_NOT_AVAILABLE") {
+                    $('.overlay').append("<h1><b>This is a preview, which only shows you the tutorial</b></h1>" + 
+                                         "<h3>This HIT involves playing at least two non-tutorial levels of the <span class='good'>InvGen</span> game.<h3>" +
+                                         "<h3><b>Played it before?</b> Come play again! You will bypass the tutorial and get new levels!<br>" + 
+                                         "<b>New player?</b> Come try it out!</h3>" + 
+                                         "<h3>We aim to pay about $10/hr</h3>" +
+                                         "<h3><b>$1.50 for the HIT</b>, which involves playing the game for at least 2 non-tutorial levels<br>" +
+                                         "<b>$1.50 bonus for doing the tutorial</b> (which you only do the first time)<br>" + 
+                                         "<b>$0.75 bonus for each non-tutorial level you pass beyond two</b></h3>");
+                  }
+                  $('.overlay').fadeIn(fadeDelay, function () {
+                    cs.nextStepOnKeyClickOrTimeout(stepTimeout, ()=>0, 32)
+                  })
+               }
+      },
+      // UI tutorial -----------------------------------------------------
+      { setup: function (cs) {
+                  logEvent("TutorialStart", null);
+                  $(".overlay").fadeOut(fadeDelay, function () {
+                    var lvl = {
+
+                      id: "tutorial",
+                      variables: [ "i", "n" ],
+                      data: [ [ [ 0, 2 ], [ 1, 2 ], [ 2, 2 ] ], [], [] ],
+                      goal: { },
+                      hint: "",
+                      supports_pos_ex: false,
+                      supports_neg_ex: false,
+                      supports_ind_ex: false,
+                    }
+
+                    curLvl = lvl;
+                    tracesW = new PositiveTracesWindow($('#data-display'));
+                    tracesW.setVariables(lvl)
+                    tracesW.onChanged(function() {
+                      if (errorTimer) {
+                        window.clearTimeout(errorTimer);
+                        errorTimer = null;
+                      }
+                      updateUI();
+                    })
+                    tracesW.addData(lvl.data);
+                    $('#hint').html(lvl.hint)
+                    updateUI()
+                    cs.nextStep();
+                  })
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($('#formula-entry'), "Type the text '3+4' here!", "left")
+                 nextStepOnInvariant(cs, "3+4", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 curL = label({ of: "#2 .temp_expr_eval", at: "left+10 bottom" },
+                              "3+4=7! (Press spacebar or click anywhere...)", "up")
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($('#formula-entry'), "Now type i.", "left")
+                 nextStepOnInvariant(cs, "i", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 curL = label({ of: "#2 .temp_expr_eval", at: "left+10 bottom" },
+                              "Column contains values of i! (space/click to continue...)", "up")
+                 curL1 = label({ of: $("#lvl_table > thead > tr > th:nth-child(1)"), at: "left center" },
+                              "", "right")
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, () => {
+                   removeLabel(curL); removeLabel(curL1);
+                 }, 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($('#formula-entry'), "Type i+1", "left")
+                 nextStepOnInvariant(cs, "i+1", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 curL = label({ of: "#2 .temp_expr_eval", at: "left+10 bottom" },
+                              "Now you get i+1 in this column!", "up")
+                 curL1 = label({ of: $("#lvl_table > thead > tr > th:nth-child(1)"), at: "left center" },
+                              "", "right")
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, () => {
+                   removeLabel(curL); removeLabel(curL1);
+                 }, 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#formula-entry"), "This box works like a calculator!", "left")
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label({ of: "#2 .temp_expr_eval", at: "left+10 bottom" },
+                              "And the results appear here", "up")
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#formula-entry"), "Now try i > 0", "left")
+                 nextStepOnInvariant(cs, "i>0", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#0 .temp_expr_eval"), "Red means false.", "left")
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#1 .temp_expr_eval"), "Green means true.", "left")
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#0 .temp_expr_eval"),
+                              "This row is part green, part red<br>Lets fix that.", "left")
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#formula-entry"), "Type i >= 0", "left")
+                 nextStepOnInvariant(cs, "i>=0", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#0 .temp_expr_eval"),
+                              "Hurray! Each row is a single color now!!", "left")
+                 cs.nextStepOnKeyClickOrTimeout(-1, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#0 .temp_expr_eval"), "This is your goal: <br>" +
+                    "to find an expression, <br> such that each row is a single color.",
+                    "left")
+                 cs.nextStepOnKeyClickOrTimeout(-1, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 tracesW.msg("Press Enter...")
+                 curL = label($("#formula-entry"), "Press enter...", "left")
+                 cs.nextStepOnKeyClickOrTimeout(-1, labelRemover(curL), 13)
+               }
+      },
+      { setup: function (cs) {
+                 tracesW.msg("")
+                 $('#score-div-row').fadeIn(fadeDelay, function() {
+                   curL = label({ of: $("#score-div-row"), at: "left+10 bottom" },
+                                "You get points for each <br> accepted expression! Sweet!", "up");
+                   scoreW.add(1);
+                   cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+                  })
+               }
+      },
+      { setup: function (cs) {
+                 $('#discovered-invariants-div').fadeIn(fadeDelay, function() {
+                   var inv = invPP(tracesW.curExp().trim());
+                   addSuccessfulInvariant(inv, "i>=0");
+                   curL = label({ of: $("#good_0"), at: "left+10 bottom" },
+                                "Your accepted expressions <br> appear here", "up");
+                   cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+                 })
+               }
+      },
+      { setup: function (cs) {
+                 $("#formula-entry").val("")
+                 curL = label($("#formula-entry"), "Type i >= 0 again.", "left")
+                 nextStepOnInvariant(cs, "i>=0", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 $('#errormsg').html("<div class='error'> Duplicate Expression! </div>");
+                 curL = label({ of: $("#good_0"), at: "left+10 bottom" },
+                                "Can't use same expression twice", "up")
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#formula-entry"), "How about i>=-1?", "left")
+                 nextStepOnInvariant(cs, "i>=-1", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 $('#errormsg').html("<div class='error'>This is weaker than a found expression!</div>");
+                 curL = label({ of: $("#good_0"), at: "left+10 bottom" },
+                              "Can't use a weaker<br> expression than <br> found one either.", "up");
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 pwups = [ new VarOnlyPowerup(2),
+                               new UseOpsPwup(["<=", ">=", "<", ">", "!=="], "<>", "inequality"),
+                               new UseOpsPwup(["+", "-"], "&plusmn;", "addition or subtraction") ]
+                 $('#sticky').addClass("box stickyWindow");
+                 stickyW = new StickyWindow($('#sticky'));
+                 $('#sticky').hide();
+                 stickyW.setPowerups(pwups);
+                 $('#sticky').fadeIn(fadeDelay, () => {
+                   curL = label({ of: $("#sticky"), at: "center bottom" },
+                                "Some expressions<br>give you more points!", "up");
+                   cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+                 })
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#formula-entry"), "Type i<=n", "left")
+                 nextStepOnInvariant(cs, "i<=n", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 tracesW.msg("Press Enter...")
+                 curL = label($("#formula-entry"), "Press enter...", "left")
+                 cs.nextStepOnKeyClickOrTimeout(-1, labelRemover(curL), 13)
+               }
+      },
+      { setup: function (cs) {
+                 tracesW.msg("")
+                 curL = label({ of: $("#sticky"), at: "center bottom" },
+                              "Double added points <br> since you used only <br> variables", "up")
+                 pwups[0].highlight(() => 
+                   cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+                 );
+               }
+      },
+      { setup: function (cs) {
+                 tracesW.msg("")
+                 curL = label({ of: $("#sticky"), at: "center bottom" },
+                              "Double added points <br> since you used <br> inequality", "up")
+                 pwups[1].highlight(() => 
+                   cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+                 );
+               }
+      },
+      { setup: function (cs) {
+                 curL = label({ of: $("#score-div-row"), at: "right center" },
+                              "So you get +4<br>instead of +1", "left")
+                 scoreW.add(4)
+                 var inv = invPP(tracesW.curExp().trim());
+                 addSuccessfulInvariant(inv, "i<=n");
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 pwups = [ new UseOpsPwup(["+", "-"], "&plusmn;", "addition or subtraction"),
+                           new UseOpsPwup(["*", "/"], "*/", "multiplication or division"),
+                           new UseOpsPwup(["=="], "=", "equality"), 
+                         ]
+                 stickyW.setPowerups(pwups);
+                 curL = label({ of: $("#sticky"), at: "center bottom" },
+                              "Bonuses change<br>based on what you try.", "up");
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      // Show Mod-----------------------------------------------
+      { setup: function (cs) {
+                  $('.overlay').html("<h1>Lets try this <br> with a more complicated operation. </h1>")
+                  $('.overlay').fadeIn(fadeDelay, function () {
+                    cs.nextStepOnKeyClickOrTimeout(stepTimeout, ()=>0, 32)
+                  })
+               }
+      },
+      { setup: function (cs) {
+                  logEvent("TutorialStart", null);
+                  $(".overlay").fadeOut(fadeDelay, function () {
+                    var lvl = {
+
+                      id: "tutorial",
+                      variables: [ "j" ],
+                      data: [ [ [ 2 ], [ 4 ], [ 6 ], [ 8 ] ], [], [] ],
+                      goal: { },
+                      hint: "",
+                      supports_pos_ex: false,
+                      supports_neg_ex: false,
+                      supports_ind_ex: false,
+                    }
+
+                    curLvl = lvl;
+                    tracesW = new PositiveTracesWindow($('#data-display'));
+                    tracesW.onChanged(function() {
+                      if (errorTimer) {
+                        window.clearTimeout(errorTimer);
+                        errorTimer = null;
+                      }
+                      updateUI();
+                    })
+                    tracesW.setVariables(lvl)
+                    tracesW.addData(lvl.data);
+
+                    pwups = [ 
+                              new UseOpsPwup(["%"], "%", "remainder after division"),
+                              new UseOpsPwup(["=="], "=", "equality"), 
+                              new UseOpsPwup(["+", "-"], "&plusmn;", "addition or subtraction"),
+                            ]
+                    stickyW.setPowerups(pwups);
+                    progW.clear();
+                    updateUI()
+                    cs.nextStep();
+                  })
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#formula-entry"), "Type j % 2", "left")
+                 nextStepOnInvariant(cs, "j%2", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#formula-entry"), "% means <br>'remainder of division'", "left")
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#formula-entry"), "j always has remainder <br> 0 divided by 2", "left")
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($("#formula-entry"), "Type j % 2 = 0", "left")
+                 nextStepOnInvariant(cs, "j%2=0", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 tracesW.msg("Press Enter...")
+                 curL = label($("#formula-entry"), "Press enter...", "left")
+                 cs.nextStepOnKeyClickOrTimeout(-1, labelRemover(curL), 13)
+               }
+      },
+      { setup: function (cs) {
+                 var inv = invPP(tracesW.curExp().trim());
+                 tracesW.msg("")
+                 pwups[0].highlight(() => 0)
+                 pwups[1].highlight(() => 0)
+                 scoreW.add(4)
+                 addSuccessfulInvariant(inv, "j%2=0");
+                 curL = label({ of: $("#score-div-row"), at: "right center" },
+                              "Hurray! <br> You learned to use %!", "left");
+                 cs.nextStepOnKeyClickOrTimeout(-1, labelRemover(curL), 13)
+               }
+      },
+      // Tutorial Levels for UI-----------------------------------------------
+      { setup: function (cs) {
+                  $('.overlay').html("<h1>Lets warm up with a couple of levels!</h1>")
+                  $('.overlay').fadeIn(fadeDelay, function () {
+                    cs.nextStepOnKeyClickOrTimeout(stepTimeout, ()=>0, 32)
+                  })
+               }
+      },
+      { setup: function (cs) {
+                 $(".overlay").fadeOut(fadeDelay, function () {
+                   $('#sticky').addClass("box stickyWindow");
+                   stickyW = new StickyWindow($('#sticky'));
+                   gameLogic = new StaticGameLogic(tracesW, progW, scoreW, stickyW, 3);
+                   var lvl = new Level("tutorial_lvl_1",
+                     [ "j", "n" ],
+                     [ [ [ 0, 3 ], [ 1, 3 ], [ 2, 3 ], [ 3, 3 ] ], [], [] ],
+                     { atleast: 1 },
+                     "What can you say about j and n?")
+                   gameLogic.loadLvl(lvl)
+                   tracesW.disable();
+                   cs.nextStep()
+                 })
+               }
+      },
+      { setup: function (cs) {
+                 curL = label({ of: $("#sticky"), at: "left+10 bottom" },
+                              "Hover over each bonus for details!", "up");
+                 // In following line, use timeout of 3000 instead of stepTimeout because of some
+                 // weird thing that happens only in firefox (not in Chrome and not in Edge), 
+                 // which is that because of tracesW.disable(), the keyboard events don't come through
+                 // unless someone clicks somewhere on the page.
+                 cs.nextStepOnKeyClickOrTimeout(3000, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 tracesW.enable();
+                 $('#formula-entry').focus();
+                 gameLogic.onLvlPassed(()=>
+                    $('#next-lvl').fadeIn(fadeDelay, ()=> {
+                      curL = label({ of: $('#next-lvl'), at: "right center" },
+                                   "Click Here!", "left")
+                    }))
+               }
+      },
+      { setup: function (cs) {
+                 //$('#next-lvl').hide();
+                 //removeLabel(curL);
+                 var lvl = new Level("tutorial_lvl_2",
+                   [ "k", "l" ],
+                   [ [ [ 1, 2 ], [ 2, 3 ], [ 3, 4 ] ], [], [] ],
+                   { atleast: 1 })
+                 gameLogic.loadLvl(lvl)
+               }
+      },
+      { setup: function (cs) {
+                 //removeLabel(curL);
+                 //$('#next-lvl').hide();
+                 var lvl = new Level("tutorial_lvl_3",
+                   [ "k", "l" ],
+                   [ [ [ 1, 3 ], [ 2, 6 ], [ 3, 9 ] ], [], [] ],
+                   { atleast: 1 })
+                 gameLogic.loadLvl(lvl)
+               }
+      },
+    ]
+
+    var negativeScript = [
+      { setup: function (cs) {
+                  $('.overlay').html("<h2>Sometimes you will see levels with 'red' rows.<br>" + 
+                                     "You need an expression the evaluates to false on those rows.<br>" + 
+                                     "Let's see an example! (space/click to continue)</h2>")
+                  $('.overlay').fadeIn(fadeDelay, function () {
+                    cs.nextStepOnKeyClickOrTimeout(stepTimeout, () => {}, 32)
+                  })
+               }
+      },
+      { setup: function (cs) {
+                 $(".overlay").fadeOut(fadeDelay, function () {});
+                 //$('#next-lvl').hide();
+               
+                 // gameLogic can be null here because we allow tutorial re-runs to begin with conditionals
+                 //  $('#score-div-row').fadeIn(fadeDelay, function() {});
+                 tracesW = new CounterexTracesWindow($('#data-display'));
+                 $('#sticky').addClass("box stickyWindow");
+                 stickyW = new StickyWindow($('#sticky'));
+                 gameLogic = new StaticGameLogic(tracesW, progW, scoreW, stickyW, 3);
+                 gameLogic.onLvlPassed(()=>
+                   $('#next-lvl').fadeIn(fadeDelay, ()=> {
+                     curL = label({ of: $('#next-lvl'), at: "right center" },
+                                 "Click Here!", "left")
+                   }))
+
+                 var lvl = new Level("tutorial_lvl_4",
+                   [ "i", "j" ],
+                   [ [ [ 1, 2 ], [ 2, 3 ], [ 3, 4 ], [ 4, 5 ] ], [], [ [ 6, 6 ]] ],
+                   { atleast: 2 });
+                 gameLogic.loadLvl(lvl);
+                 curL = label($('#0_1.false'), "Notice the red row when i=j (space/click to continue)", "left", 0, 0);
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($('#formula-entry'), "Type 'i&lt=j'", "left");
+                 gameLogic.onUserInput(function (inv) {
+                      if (tempCb != null)
+                        tempCb(inv.replace(/\s/g, ""))
+                 });
+                 nextStepOnInvariant(cs, "i<=j", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 removeLabel(curL);
+                 curL = label($('#neg_0'), "This row is not all red!<br> (space/click to continue)", "left", 0, 0);
+                 gameLogic.onUserInput(function (inv) {
+                      if (tempCb != null)
+                        tempCb(inv.replace(/\s/g, ""))
+                 });
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($('#formula-entry'), "Type 'i&ltj' now", "left");
+                 gameLogic.onUserInput(function (inv) {
+                      if (tempCb != null)
+                        tempCb(inv.replace(/\s/g, ""))
+                 });
+                 nextStepOnInvariant(cs, "i<j", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 removeLabel(curL);
+                 curL = label($('#neg_0'), "Now row is all red! (space/click to continue)", "left", 0, 0);
+                 gameLogic.onUserInput(function (inv) {
+                      if (tempCb != null)
+                        tempCb(inv.replace(/\s/g, ""))
+                 });
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 removeLabel(curL);
+                 curL = label($('#neg_0'), "Press Enter", "left", 0, 0);
+                 gameLogic.onUserInput(function (inv) {
+                      if (tempCb != null)
+                        tempCb(inv.replace(/\s/g, ""))
+                 });
+                 cs.nextStepOnKeyClickOrTimeout(-1, labelRemover(curL), 13);
+               }
+      },
+    ]
+
+    var conditionalsScript = [
+      { setup: function (cs) {
+                  $('.overlay').html("<h2>Sometimes there is a pattern that only holds under some conditions.<br>" + 
+                                     "You can capture this with an 'if' expression.<br>" + 
+                                     "Let's see an example! (space/click to continue)</h2>")
+                  $('.overlay').fadeIn(fadeDelay, function () {
+                    cs.nextStepOnKeyClickOrTimeout(stepTimeout, () => {}, 32)
+                  })
+               }
+      },
+      { setup: function (cs) {
+                 $(".overlay").fadeOut(fadeDelay, function () {});
+                 //$('#next-lvl').hide();
+               
+                 // gameLogic can be null here because we allow tutorial re-runs to begin with conditionals
+                 if (gameLogic === null) {
+                   $('#score-div-row').fadeIn(fadeDelay, function() {});
+                   tracesW = new PositiveTracesWindow($('#data-display'));
+                   $('#sticky').addClass("box stickyWindow");
+                   stickyW = new StickyWindow($('#sticky'));
+                   gameLogic = new StaticGameLogic(tracesW, progW, scoreW, stickyW, 3);
+                   gameLogic.onLvlPassed(()=>
+                     $('#next-lvl').fadeIn(fadeDelay, ()=> {
+                       curL = label({ of: $('#next-lvl'), at: "right center" },
+                                   "Click Here!", "left")
+                     }))
+                 }
+
+                 var lvl = new Level("tutorial_lvl_4",
+                   [ "i", "x", "y" ],
+                   [ [ [ 1, 4, 5 ], [ 2, 5, 6 ], [ 3, 7, 7 ], [ 4, 8, 8 ], [ 5, 9, 9 ] ], [], [] ],
+                   { atleast: 2 });
+                 gameLogic.loadLvl(lvl);
+                 tracesW.highlightRect(1,2,2,3, 'solid 3px blue', "lightcyan");
+                 curL = label($('#3_2'), "See how x = y here (space/click to continue)", "left", 0, 0);
+                 setTimeout(function() { cs.nextStepOnKeyClickOrTimeout(stepTimeout, () => {}, 32) }, 500);
+               }
+      },
+      { setup: function (cs) {
+                 tracesW.highlightRect(1,0,2,2, 'solid 3px purple', "F9F2F9");
+                 curL1 = label({ of: '#0_2', at: "right bottom"}, "But not here (space/click to continue)", "left", 0, 0);
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, () => {}, 32)
+               }
+      },
+      { setup: function (cs) {
+                 tracesW.highlightRect(0,2,1,3, 'solid 3px red', "FFEFF2");
+                 curL2 = label({ of: '#4_0', at: "left bottom" }, 
+                   "Also note that i >= 3 here. In summary: x=y <i>if</i> i >= 3<br>(space/click to continue)", "up", 0, 0);
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, () => {}, 32)
+               }
+      },
+      { setup: function (cs) {
+                 removeLabel(curL);
+                 removeLabel(curL1);
+                 removeLabel(curL2); 
+                 tracesW.clearRect(1,2,2,3);
+                 tracesW.clearRect(1,0,2,2);
+                 tracesW.clearRect(0,2,1,3);
+                 curL = label($('#formula-entry'), "Type 'x=y'", "left");
+                 gameLogic.onUserInput(function (inv) {
+                      if (tempCb != null)
+                        tempCb(inv.replace(/\s/g, ""))
+                 });
+                 nextStepOnInvariant(cs, "x=y", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 curL = label({ of: "#4 .temp_expr_eval", at: "left+10 bottom" }, "Notice results (space/click to continue)", "up");
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+               }
+      },
+      { setup: function (cs) {
+                 curL = label($('#formula-entry'), "Add ' if i>=3'", "left");
+                 nextStepOnInvariant(cs, "x=yifi>=3", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+                 gameLogic.onCommit(function () {
+                      cs.nextStep();
+                 });
+               }
+      },
+      { setup: function (cs) {
+                 gameLogic.onCommit(null);
+                 setTimeout(function() {
+                   tracesW.highlightRect(0,0,3,2, 'solid 3px purple', "F9F2F9");
+                   curL = label($('#0_2'), "See how y=x+1 if i < 3<br>(space/click to continue)", "left", 0, 0);
+                   cs.nextStepOnKeyClickOrTimeout(stepTimeout, () => {}, 32)
+                 }, 700);
+               }
+      },
+      { setup: function (cs) {
+                 removeLabel(curL);
+                 tracesW.clearRect(0,0,3,2);
+                 curL = label($('#formula-entry'), "Try 'y=x+1 if i<3'", "left");
+                 nextStepOnInvariant(cs, "y=x+1ifi<3", labelRemover(curL));
+               }
+      },
+      { setup: function (cs) {
+               }
+      },
+    ]
+    var conclusionScript = [
+      // Conclusion ----------------------------------------------------------
+      { setup: function (cs) {
+                  var elmts = $('#data-display table').add('#score-div-row').add('#discovered-invariants-div')
+                  .add('#sticky').add('.kill-switch');
+                  var numElmts = elmts.length;
+                  elmts.fadeOut(fadeDelay, function () {
+                    if( --numElmts > 0 ) return;
+                    removeLabel(curL);
+                    cs.nextStep()
+                  })
+               }
+      },
+      { setup: function (cs) {
+                  $('#next-lvl').hide();
+                  var ops = [ ['+', 'Integer Addition', '3+4=7, i+1'],
+                      ['-', 'Integer Subtraction', '4-3=1, j-1'],
+                      ['*', 'Integer Multiplication', '4*3=12, n*2'],
+                      ['/', 'Integer Division', '5/2=2, n/3'],
+                      ['%', 'Remainder of Integer Division', '5%2=1, n%2'],
+                      ['()', 'Parenthesis', '3*(2+3)=15, 2*(n+1)'],
+                      ['=', 'Equality', '3=3, n=2'],
+                      ['!=', 'Inequality', '3!=2, n!=0'],
+                      ['&lt <br> &gt', 'Less than<br>Greater than', '2<3, n>0'],
+                      ['&lt= <br> &gt=', 'Less than or equal<br>Greater than or equal', '2<=2, n>=0'],
+                      ['&&', 'Logical And', '(n<5) && (n>0)'],
+                      ['||', 'Logical Or', '(n>=5) || (n<=0)'],
+                    ]
+
+                  if (!Args.get_noifs()) {
+                    ops.push(['if', 'Conditional', 'x=y if x > y']);
+                  }
+
+                  $('#data-display').html('<div stype="display: none">' +
+                    '<h2><p>You can use all of the following operators:</p></h2><h3>' +
+                    '<table class="table table-stripped"><thead><tr><th>Operator</th><th>Description</th><th>Examples</th></tr></thead>' +
+                    '<tbody>' +
+                    ops.map(
+                      ((x) => '<tr><td>' + x[0] + '</td><td>' + x[1] + '</td><td>' + x[2] + '</td></tr>'))
+                     .join('\n') +
+                    '</tbody></table></h3>' +
+                    '</div>');
+                    if (Args.get_tutorial_action() != "redo-cond" &&
+                        Args.get_tutorial_action() != "redo-all")
+                      cs.nextStep()
+               }
+      },
+      { setup: function (cs) {
+                 rpc.call('App.setTutorialDone', [Args.get_worker_id()], function(res) {
+                   logEvent("TutorialDone", null);
+                   $('#next-lvl').html("Start Playing")
+                   $('#next-lvl').off("click")
+                   $('#next-lvl').click(function() {
+                     var queryStr = window.location.search
+                     if (Args.get_noifs()) {
+                       queryStr = queryAppend(queryStr, "noifs")
+                     }
+                     window.location.replace('game.html' + queryStr);
+                   })
+                   $('#next-lvl').fadeIn(fadeDelay, function() {
+                     curL = label({ of: $("#next-lvl"), at: "left center"},
+                                  "Proceed to the game!", "right");
+                   })
+                 }, log)
+               }
+      },
+    ]
+
+    if (Args.get_mode() == "rounds") {
+       // Add negative steps to tutorial
+       mainScript = mainScript.concat(negativeScript);
+    }
+
+    if (Args.get_tutorial_action() == "redo-cond") {
+       tutorialScript = conditionalsScript
+    } else if (Args.get_noifs()) {
+       tutorialScript = mainScript.concat(conclusionScript)
+    } else {
+       tutorialScript = mainScript.concat(conditionalsScript).concat(conclusionScript)
+    }
+
+    $(document).ready(function() {
+      if (Args.get_assignment_id() == "ASSIGNMENT_ID_NOT_AVAILABLE") {
+        $("#hit-preview-warning").html("<p class='lead'><b>This is just a preview of the HIT. The work you do here will have to be redone when you accept the HIT.</b></p>");
+      }
+
+      rpc = new $.JsonRpcClient({ ajaxUrl: "/api" })
+      progW = new ProgressWindow($('#discovered-invariants-div'));
+      $('#discovered-invariants-div').hide();
+      $('.ignoreWindow').hide();
+      scoreW = new ScoreWindow($('#score-div'));
+      $('#score-div-row').hide();
+      $('#next-lvl').hide();
+      $('#overlay').hide();
+
+      var curScript = new Script(tutorialScript);
+
+      $('#next-lvl').click(function() {
+        $('#next-lvl').hide();
+        if (curL != null)
+          removeLabel(curL);
+        curScript.nextStep();
+      })
+    })
+
+  </script>
+</head>
+<body tabindex="-1">
+  <div class='container'>
+    <div class='row' id='hit-preview-warning'>
+    </div>
+    <div class='row'>
+      <div class='col-md-1' id='dummy'>
+      </div>
+      <div class='col-md-1' id='sticky'>
+      </div>
+      <div class='col-md-6' id='middle'>
+        <div class='row' id='data-display' style="font-family:monospace;">
+        </div>
+        <div class='row-md-6 spaced' id='errormsg'> </div>
+        <div class='row-md-6' id='done-row'>
+          <div class='col-md-6 col-md-offset-4' style='margin-top: 30px;'>
+            <button id='next-lvl' class='btn-next'> Next Level </button>
+          </div>
+        </div>
+      </div>
+      <div class='col-md-3' >
+        <div id='score-div-row' class='row positioned box progressWindow'>
+          <div class='col-md-2'> Score: </div>
+          <div id='score-div' class='col-md-7 col-md-offset-3'>
+          </div>
+        </div>
+        <div class='row good centered positioned' id='discovered-invariants-div'>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class='overlay text-center' style='display: none;'></div> 
+</body>
+</html>

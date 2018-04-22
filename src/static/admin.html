@@ -1,0 +1,369 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- third party libraries -->
+  <script src="jquery-1.12.0.min.js"></script>
+  <script src="jquery.jsonrpcclient.js"></script>
+  <script src="jquery.color-2.1.2.min.js"></script>
+  <script src="jquery-ui-1.11.4/jquery-ui.js"></script>
+  <script src="esprima.js"></script>
+  <link rel="stylesheet" href="bootstrap.min.css">
+  <link rel="stylesheet" href="bootstrap-theme.min.css">
+  <script src="bootstrap.min.js"></script>
+
+  <!-- our code -->
+  <link rel="stylesheet" href="inv.css">
+  <link rel="stylesheet" href="admin.css">
+  <script src="build/ts/container.js"></script>
+  <script src="build/ts/logic.js"></script>
+  <script src="build/ts/level.js"></script>
+  <script src="build/ts/eval.js"></script>
+  <script src="build/ts/pp.js"></script>
+  <script src="build/ts/util.js"></script>
+
+  <script>
+    var curLvlSet;
+    var adminToken;
+    var allLogs = []
+    var userStats = [ ]
+    var lvlStats = [ ]
+    var solutions = null;
+
+    disableBackspaceNav();
+
+    function showError(errMsg) {
+      $("#error-body").html(errMsg);
+      $("#errorDialog").modal("show");
+    }
+
+    function fmtEvent(e) {
+        var fmt = "[" + e.time + "] " +
+                      e.src + "," + 
+                      //e.addr + "," + 
+                      e.type + ":";
+
+        if (e.type == "StartLevel") {
+          fmt = fmt + e.payload["lvlset"] + "," + e.payload["lvlid"];
+        } else if (e.type == "FinishLevel") {
+          fmt = fmt + e.payload["lvlset"] + "," + e.payload["lvlid"] + "," + e.payload["all_found"] + "," + e.payload["verified"]
+
+        } else {
+          fmt = fmt + JSON.stringify(e.payload);
+        }
+
+        return fmt;
+    }
+
+    function computeStats() {
+      var users = { }
+      var lvls = { }
+      for (var i in allLogs) {
+        let e = allLogs[i];
+
+        if (e.src == "verifier") {
+          if (e.type == "VerifyAttempt") {
+            let lvlid = e.payload.lvlset + "," + e.payload.lvlid;
+            lvls[lvlid].sound = e.payload.sound.length;
+            lvls[lvlid].nonind = e.payload.nonind.length;
+            lvls[lvlid].overfitted = e.payload.overfitted.length;
+            lvls[lvlid].soundSet = e.payload.sound;
+            lvls[lvlid].nonindSet = e.payload.nonind;
+            lvls[lvlid].overfittedSet = e.payload.overfitted;
+            lvls[lvlid].solved = lvls[lvlid].solved || (e.payload.post_ctrex.length == 0);
+          }
+          continue;
+        }
+
+        if (!users.hasOwnProperty(e.src)) {
+          users[e.src] = {
+            completed: 0,
+            solved: 0,
+            skipped: 0,
+            time: 0,
+            invs: 0,
+            lvlD: {},
+            gamesDone: 0,
+            tutorialsDone: 0,
+          };
+        }
+
+        var ud = users[e.src];
+
+        if (e.type == "StartLevel") {
+          let lvlid = e.payload.lvlset + "," + e.payload.lvlid;
+          ud.lvlD[lvlid] = { started: e.time };
+          if (!lvls.hasOwnProperty(lvlid)) {
+            lvls[lvlid] = { completed: 0,
+                            started:0,
+                            skipped:0,
+                            invs: 0,
+                            time: 0,
+                            sound: 0,
+                            overfitted: 0,
+                            nonind: 0,
+                            soundSet: [ ],
+                            nonindSet: [ ],
+                            overfittedSet: [ ],
+                            completedUsers: {},
+                            skippedUsers: {},
+                            startedUsers: {},
+                            finishedUsers: {},
+            }
+          };
+          lvls[lvlid].started ++;
+          lvls[lvlid].startedUsers[e.src] = 1; 
+        } else if (e.type == "FinishLevel") {
+          let lvlid = e.payload.lvlset + "," + e.payload.lvlid;
+          console.log(e.payload)
+          ud.lvlD[lvlid].finished = e.time;
+          ud.completed ++;
+          if (e.payload.verified)
+            ud.solved ++;
+
+          let started = Date.parse(ud.lvlD[lvlid].started)
+          let finished = Date.parse(ud.lvlD[lvlid].finished)
+ 
+          let duration = (finished - started) / 1000.0
+          ud.time += duration
+          lvls[lvlid].time += duration
+
+          ud.invs += e.payload.all_found.length;
+          lvls[lvlid].invs += e.payload.all_found.length
+          lvls[lvlid].completed ++;
+          lvls[lvlid].completedUsers[e.src] = 1;
+          lvls[lvlid].finishedUsers[e.src] = 1;
+        } else if (e.type == "SkipToNextLevel") {
+          let lvlid = e.payload.lvlset + "," + e.payload.lvlid;
+          ud.skipped ++;
+          lvls[lvlid].skipped ++;
+          lvls[lvlid].skippedUsers[e.src] = 1;
+          lvls[lvlid].finishedUsers[e.src] = 1;
+        } else if (e.type == "GameDone") {
+          ud.gamesDone ++;
+        } else if (e.type == "TutorialDone") {
+          ud.tutorialsDone ++;
+        }
+      }
+      userStats = users;
+      lvlStats = lvls;
+    }
+
+    function spanify(lst) {
+      return "<span class='inv'>" + lst.join("</span><br><span class='inv'>") + "</span>"
+    }
+
+    function updateTables() {
+      $("#users_tbody").empty();
+      for (var userId in userStats) {
+        let ud = userStats[userId];
+        $("#users_tbody").append("<tr><td>" +
+            [userId,
+             ud.gamesDone,
+             ud.tutorialsDone,
+             ud.completed,
+             ud.solved,
+             ud.skipped,
+             ud.time,
+             ud.invs,
+             ud.time / ud.completed,
+             ud.invs / ud.completed].join("</td><td>") + "</td></tr>")
+      }
+      $("#levels_tbody").empty();
+      $("#level_invs_tbody").empty();
+      for (var levelId in lvlStats) {
+        let ld = lvlStats[levelId];
+        $("#levels_tbody").append("<tr><td>" + [levelId,
+          ld.solved,
+          ld.completed,
+          ld.skipped,
+          Object.keys(ld.startedUsers).length,
+          Object.keys(ld.finishedUsers).length,
+          ld.time,
+          ld.time / ld.completed,
+          ld.invs,
+          ld.invs / ld.completed,
+          ld.sound,
+          ld.nonind,
+          ld.overfitted
+        ].join("</td><td>") + "</td></tr>")
+
+        $("#level_invs_tbody").append("<tr><td>" + [levelId,
+          spanify(ld.soundSet),
+          spanify(ld.nonindSet),
+          spanify(ld.overfittedSet),
+          spanify($.map(solutions[levelId], esprimaToEvalStr))
+        ].join("</td><td>") + "</td></tr>")
+      }
+    }
+
+    function addLogs(l) {
+      allLogs = allLogs.concat(l);
+      for (var i in l) {
+        let e = l[i];
+        $("#content_raw").append($("<div class='row " + e.type + "'>" + fmtEvent(e) + "</div>"));
+      }
+      computeStats();
+      updateTables();
+    }
+
+    function loadLogs(rpc, afterTimestamp=null, afterId=null) {
+      rpc.call("App.getLogs", [adminToken, afterTimestamp, afterId], function (r) {
+        console.log(r)
+        if (r.length > 0)
+          addLogs(r);
+        setTimeout(function() {
+          var id = 0;
+
+          if (allLogs.length > 0)
+            id = allLogs[allLogs.length - 1].id
+
+
+          loadLogs(rpc, null, id);
+        }, 2000);
+      }, function (err) {
+        showError(err.message);
+      });
+    }
+
+    function loadSolutions(rpc) {
+      rpc.call("App.getSolutions", [], function (solns) {
+        solutions = solns; 
+        loadLogs(rpc)
+      })
+    }
+
+    $(document).ready(function() {
+      rpc = new $.JsonRpcClient({ ajaxUrl: "/api" })
+      adminToken = Args.get_admin_token();
+
+      if (adminToken === undefined) {
+        $("#enter-token").on("click", function() {
+          adminToken = $("#admin-token").val();
+          $("#tokenInputDialog").modal("hide");
+          loadSolutions(rpc);
+        })
+        $("#tokenInputDialog").modal("show");
+      } else {
+          loadSolutions(rpc);
+      }
+    })
+  </script>
+</head>
+<body>
+  <div class='container'>
+  <div id="tokenInputDialog" class="modal fade" role="dialog">
+    <div class="modal-dialog">
+
+      <!-- Modal content-->
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title">Admin Token</h4>
+        </div>
+        <div class="modal-body">
+          <p>Enter admin token:</p> <input type="text" id="admin-token"> </input>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" id="enter-token">Enter</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="errorDialog" class="modal fade" role="dialog">
+    <div class="modal-dialog">
+
+      <!-- Modal content-->
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title">Error:</h4>
+        </div>
+        <div class="modal-body" id="error-body">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" id="errro-close">Close</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+    <div class='row'>
+      <div class='col-md-12' id='content'>
+        <ul class="nav nav-tabs">
+          <li class="active"><a href="#content_raw"  data-toggle="tab">Raw Logs</a>
+          </li>
+          <li><a href="#content_users" data-toggle="tab">Users</a></li>
+          <li><a href="#content_levels" data-toggle="tab">Levels</a></li>
+          <li><a href="#content_level_invs" data-toggle="tab">Level Invariants</a></li>
+        </ul>
+        <div class="tab-content">
+          <div id="content_raw" class="tab-pane active">
+          </div>
+          <div id="content_users" class="tab-pane ">
+            <table class='table'>
+              <thead>
+                <tr>
+                  <th> UserID </th>
+                  <th> # Hits Finished</th>
+                  <th> # Tutorials Finished</th>
+                  <th> # Lvls Completed </th>
+                  <th> # Lvls Solved </th>
+                  <th> # Lvls Skipped </th>
+                  <th> Total Time </th>
+                  <th> # Invs Total </th>
+                  <th> Avg Time/Lvl </th>
+                  <th> Avg #Invs/Lvl </th>
+                </tr>
+              </thead>
+              <tbody id='users_tbody'>
+              </tbody>
+            </table>
+          </div>
+          <div id="content_levels" class="tab-pane">
+            <table class='table'>
+              <thead>
+                <tr>
+                  <th> LevelId </th>
+                  <th> Solved </th>
+                  <th> #Users Completed </th>
+                  <th> #Users Skipped </th>
+                  <th> #Unique users started</th>
+                  <th> #Unique users finished</th>
+                  <th> Total Time </th>
+                  <th> Avg Time/Lvl </th>
+                  <th> #Invs </th>
+                  <th> Avg #Invs/User </th>
+                  <th> #Sound</th>
+                  <th> #Overfit</th>
+                  <th> #Nonind</th>
+                </tr>
+              </thead>
+              <tbody id='levels_tbody'>
+              </tbody>
+            </table>
+          </div>
+          <div id="content_level_invs" class="tab-pane">
+            <table class='table'>
+              <thead>
+                <tr>
+                  <th> LevelId </th>
+                  <th> Sound</th>
+                  <th> Overfit</th>
+                  <th> Nonind</th>
+                  <th> Solution</th>
+                </tr>
+              </thead>
+              <tbody id='level_invs_tbody'>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div> 
+</body>
+</html>

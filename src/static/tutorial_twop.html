@@ -1,0 +1,731 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- third party libraries -->
+  <script src="jquery-1.12.0.min.js"></script>
+  <script src="jquery.jsonrpcclient.js"></script>
+  <script src="jquery.color-2.1.2.min.js"></script>
+  <script src="jquery-ui-1.11.4/jquery-ui.js"></script>
+  <script src="esprima.js"></script>
+  <link rel="stylesheet" href="bootstrap.min.css">
+  <link rel="stylesheet" href="bootstrap-theme.min.css">
+  <script src="bootstrap.min.js"></script>
+
+  <!-- our code -->
+  <link rel="stylesheet" href="inv.css">
+  <link rel="stylesheet" href="arrow.css">
+  <script src="build/ts/gameLogic.js"></script>
+  <script src="build/ts/powerups.js"></script>
+  <script src="build/ts/traceWindow.js"></script>
+  <script src="build/ts/stickyWindow.js"></script>
+  <script src="build/ts/progressWindow.js"></script>
+  <script src="build/ts/scoreWindow.js"></script>
+  <script src="build/ts/curvedarrow.js"></script>
+  <script src="build/ts/bonus.js"></script>
+  <script src="build/ts/logic.js"></script>
+  <script src="build/ts/eval.js"></script>
+  <script src="build/ts/level.js"></script>
+  <script src="build/ts/pp.js"></script>
+  <script src="build/ts/util.js"></script>
+
+  <script>
+    var stepTimeout = -1; //5000;
+
+    var curLvl;
+    var curLvlSet;
+    var lvls = null;
+    var traceW = null, progW = null, scoreW = null, stickyW = null;
+    var gameLogic = null;
+    var lvlPassed = null;
+
+    var curLvl2;
+    var curLvlSet2;
+    var lvls2 = null;
+    var traceW2 = null, progW2 = null, scoreW2 = null, stickyW2 = null;
+    var gameLogic2 = null;
+    var lvlPassed2 = null;
+
+    var curLvlCompleted = null;
+    var curLvlCompleted2 = null;
+
+    var player = 1;
+
+    var player1Done = false;
+    var player2Done = false;
+
+    var allowSwitch = true;
+
+    var curL, curL1, curL2;
+    var tempCb = null;
+    var errorTimer = null;
+    var errorDelay = 2000;
+    var fadeDelay = 500;
+
+    disableBackspaceNav();
+
+    var allowBonus = true;
+
+    function loadLvl(lvl) {
+      if (lvl == lvls.length) {
+        doneScreen();
+      } else {
+        if (typeof(lvls[curLvl]) == "string") {
+          $('#lvl_' + lvls[curLvl]).removeClass('bold');
+          $('#lvl_' + lvls[curLvl]).removeClass('currentLevel');
+          //$('#lvl_' + lvls[curLvl]).parent().removeClass('currentLevel');
+          if (lvlPassed[curLvl] != false) {
+            //$('#lvl_' + lvls[curLvl]).parent().addClass('completedLevel');
+            $('#lvl_' + lvls[curLvl]).addClass('completedLevel');
+          }
+          else {
+            //$('#lvl_' + lvls[curLvl]).parent().addClass('pending');
+            $('#lvl_' + lvls[curLvl]).addClass('pending');
+          }
+        }
+
+        curLvl = lvl;
+        if (typeof(lvls[lvl]) == "string") {
+          $('#lvl_' + lvls[curLvl]).addClass('bold');
+          $('#lvl_' + lvls[curLvl]).addClass('currentLevel');
+          //$('#lvl_' + lvls[curLvl]).parent().addClass('currentLevel');
+        }
+
+        if (lvl == lvls.length - 1) {
+          $('#next-lvl').html('Finish');
+        }
+
+        if (typeof(lvls[lvl]) == "string") {
+          loadTrace(lvls[curLvl]);
+        } else {
+          gameLogic.loadLvl(lvls[curLvl])
+        }
+      }
+    }
+
+    function loadLvl2(lvl) {
+      if (lvl == lvls2.length) {
+        doneScreen();
+      } else {
+        if (typeof(lvls2[curLvl2]) == "string") {
+          $('#lvl2_' + lvls2[curLvl2]).removeClass('bold');
+          $('#lvl2_' + lvls2[curLvl2]).removeClass('currentLevel');
+          //$('#lvl2_' + lvls2[curLvl2]).parent().removeClass('currentLevel');
+          if (lvlPassed2[curLvl2] != false) {
+            //$('#lvl2_' + lvls2[curLvl2]).parent().addClass('completedLevel');
+            $('#lvl2_' + lvls2[curLvl2]).addClass('completedLevel');
+          }
+          else {
+            //$('#lvl2_' + lvls2[curLvl2]).parent().addClass('pending');
+            $('#lvl2_' + lvls2[curLvl2]).addClass('pending');
+          }
+        }
+
+        curLvl2 = lvl;
+        if (typeof(lvls2[lvl]) == "string") {
+          $('#lvl2_' + lvls2[curLvl2]).addClass('bold');
+          //$('#lvl2_' + lvls2[curLvl2]).parent().addClass('currentLevel');
+          $('#lvl2_' + lvls2[curLvl2]).addClass('currentLevel');
+        }
+
+        if (lvl == lvls2.length - 1) {
+          $('#next-lvl2').html('Finish');
+        }
+
+        if (typeof(lvls2[lvl]) == "string") {
+          loadTrace2(lvls2[curLvl2]);
+        } else {
+          gameLogic2.loadLvl(lvls2[curLvl2]);
+        }
+      }
+    }
+
+    function loadLvlSet(lvlset) {
+      curLvlSet = lvlset;
+
+      res = rpc.call('App.listData', [lvlset], function(res) {
+        lvls = res;
+        lvlPassed = new Array(res.length);
+        for (var i = 0; i < res.length; ++i) { lvlPassed[i] = false; }
+        hstr = '<ul class="levels">';
+        for (var i in res) {
+          // hstr += '<li class="level pending">' + '<a class="loadLvl" id="lvl_' + res[i] + '" >' + i + '</a>' + '</li>';
+          hstr += '<li class="level pending" id="lvl_' + res[i] + '" >' + i + '</li>';
+        }
+        hstr += '</ul>';
+        $('#traces-menu').html(hstr);
+
+        $('.loadLvl').click(function (evt) {
+          loadLvl(lvls.indexOf(this.id.substring(4)));
+          loadLvl2(lvls2.indexOf(this.id.substring(4)));
+        });
+        curLvl = -1;
+        nextLvl();
+      }, log)
+    }
+
+    function loadLvlSet2(lvlset) {
+      curLvlSet2 = lvlset;
+
+      res = rpc.call('App.listData', [lvlset], function(res) {
+        lvls2 = res;
+        lvlPassed2 = new Array(res.length);
+        for (var i = 0; i < res.length; ++i) { lvlPassed2[i] = false; }
+        hstr = '<ul class="levels">';
+        for (var i in res) {
+          // hstr += '<li class="level pending">' + '<a class="loadLvl" id="lvl2_' + res[i] + '" >' + i + '</a>' + '</li>';
+          hstr += '<li class="level pending" id="lvl2_' + res[i] + '" >' + i + '</a>' + '</li>';
+        }
+        hstr += '</ul>';
+        $('#traces-menu2').html(hstr);
+
+        $('.loadLvl').click(function (evt) {
+          loadLvl(lvls.indexOf(this.id.substring(4)));
+          loadLvl2(lvls2.indexOf(this.id.substring(4)));
+        });
+        curLvl2 = -1;
+        nextLvl2();
+      }, log)
+    }
+
+    function doneScreen() {
+      var score1 = gameLogic.score;
+      var score2 = gameLogic2.score;
+
+      var result = "<br>Player 1: " + score1 + " points<br>Player 2: " + score2
+                    + " points<br><br>";
+
+      if(score1 > score2) {
+        result += "Winner: Player 1"
+      }
+      else if(score2 > score1) {
+        result += "Winner: Player 2"
+      }
+      else {
+        result += "It's a tie"
+      }
+
+      $(".overlay").html("<h1 class='good'>Good job!<br>" +
+        result  + "!</h1><br>" +
+        "<h2> Please submit the screencast of your work! </h2>"
+      );
+      $(".overlay").fadeIn(1000);
+    }
+
+    function labelRemover(lbl) {
+      return function () { removeLabel(lbl); }
+    }
+
+    function updateUI() {
+      if(player == 1) {
+        var inv = invPP(traceW.curExp().trim());
+        try {
+          var parsedInv = esprima.parse();
+        } catch (err) {
+          log("Error parsing: " + err)
+        }
+
+        if (inv.length == 0) {
+          traceW.evalResult({ clear: true })
+          return;
+        }
+
+        if (tempCb != null)
+          tempCb(inv)
+
+        try {
+          res_pos = invEval(invToJS(inv), curLvl.variables, curLvl.data[0])
+          res_ind = invEval(invToJS(inv), curLvl.variables, curLvl.data[2])
+          res_ind = zip(res_ind.filter((_,i)=>i%2==0), res_ind.filter((_,i)=>i%2==1))
+          traceW.evalResult({ data: [ res_pos, [], res_ind ]})
+        } catch (err) {
+          errorTimer = setTimeout(function() {
+            traceW.evalResult({ clear: true })
+            $('#errormsg').html("<div class='error'> " + interpretError(err) + "</div>")
+          }, errorDelay)
+        }
+      }
+      else {
+        var inv = invPP(traceW2.curExp().trim());
+        try {
+          var parsedInv = esprima.parse();
+        } catch (err) {
+          log("Error parsing: " + err)
+        }
+
+        if (inv.length == 0) {
+          traceW2.evalResult({ clear: true })
+          return;
+        }
+
+        if (tempCb != null)
+          tempCb(inv)
+
+        try {
+          res_pos = invEval(invToJS(inv), curLvl.variables, curLvl.data[0])
+          res_ind = invEval(invToJS(inv), curLvl.variables, curLvl.data[2])
+          res_ind = zip(res_ind.filter((_,i)=>i%2==0), res_ind.filter((_,i)=>i%2==1))
+          traceW2.evalResult({ data: [ res_pos, [], res_ind ]})
+        } catch (err) {
+          errorTimer = setTimeout(function() {
+            traceW2.evalResult({ clear: true })
+            $('#errormsg').html("<div class='error'> " + interpretError(err) + "</div>")
+          }, errorDelay)
+        }
+      }
+    }
+
+    function nextStepOnInvariant1(curScript, invariant, destructor) {
+       tempCb = function(inv) {
+         if (inv == invariant) {
+           removeLabel(curL);
+           tempCb = null;
+           destructor();
+           curScript.nextStep();
+         }
+       }
+    }
+
+
+    var tutorialScript = [
+      { setup: function (cs) {
+                $('.overlay').html("<h1>Welcome to the <span class='good'>InvGen</span> Two-Player Tutorial!<br><br>You can press spacebar at any time <br>to proceed to the next step.</h1>")
+                $('.overlay').fadeIn(0, function () {
+                  cs.nextStepOnKeyClickOrTimeout(stepTimeout, ()=>0, 32)
+                })
+               }
+      },
+
+      {
+        setup: function (cs) {
+              $(".overlay").fadeOut(fadeDelay, function () {
+                  var lvl = new Level("tutorial_lvl_1",
+                    [ "i", "n" ],
+                    [ [ [ 0, 2 ], [ 1, 3 ], [ 2, 4 ] ], [], [] ],
+                    { atleast: 1 },
+                    "What can you say about j and n?")
+
+                  curLvl = lvl;
+
+                  traceW.setVariables(lvl)
+                  traceW2.setVariables(lvl)
+
+                  gameLogic = new TwoPlayerGameLogic(1, traceW, progW, scoreW, stickyW);
+                  gameLogic2 = new TwoPlayerGameLogic(2, traceW2, progW2, scoreW2, stickyW2);
+
+                  gameLogic.loadLvl(lvl)
+                  gameLogic2.loadLvl(lvl)
+
+                  traceW.onChanged(function() {
+                    if (errorTimer) {
+                      window.clearTimeout(errorTimer);
+                      errorTimer = null;
+                    }
+                    updateUI();
+                  })
+                  traceW2.onChanged(function() {
+                    if (errorTimer) {
+                      window.clearTimeout(errorTimer);
+                      errorTimer = null;
+                    }
+                    updateUI();
+                  })
+
+                  updateUI()
+                  cs.nextStep();
+                }
+              );}
+      },
+      {
+        setup: function(cs) {
+                 curL = label($('#score-div'),
+                              "This is Player 1's score",
+                              "left")
+                 $('body').focus();
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32);
+               }
+      },
+      {
+        setup: function (cs) {
+                 curL = label($('#discovered-invariants-div'),
+                            "The invariants Player 1<br>finds will appear here",
+                            "left")
+                 $('body').focus();
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32);
+               }
+      },
+      {
+        setup: function (cs) {
+                 curL = label($('#score-div2'),
+                            "This is Player 2's score",
+                            "left")
+                 $('body').focus();
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32);
+               }
+      },
+      {
+        setup: function (cs) {
+                 curL = label($('#discovered-invariants-div2'),
+                            "The invariants Player 2<br>finds will appear here",
+                            "left")
+                 $('body').focus();
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32);
+               }
+      },
+      {
+        setup: function (cs) {
+                if(player == 1) {
+                 curL = label($('#btn-switch'),
+                              "Click here to pass up your turn if you're stuck",
+                              "left");
+                }
+                else {
+                  curL = label($('#btn-switch2'),
+                               "Click here to pass up your turn if you're stuck",
+                               "left");
+                }
+                 cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32);
+               }
+      },
+      {
+        setup: function (cs) {
+                  curL = label($('#sticky'), "", "up")
+                  curL1 = label($('#pnum'), "", "up")
+                  curL2 = label($('#data-display'), "Red color indicates that<br>it's Player 1's turn", "up")
+                  cs.nextStepOnKeyClickOrTimeout(stepTimeout, () => {
+                    removeLabel(curL); removeLabel(curL1); removeLabel(curL2); }, 32);
+        }
+      },
+
+      {
+        setup: function (cs) {
+                  $('#btn-switch2').click();
+                  cs.nextStepOnKeyClickOrTimeout(10, () => {}, 32);
+        }
+      },
+
+      { setup: function (cs) {
+                  curL = label($("#formula-entry"), "Player 1, type n > i", "left")
+                  nextStepOnInvariant1(cs, "n>i", labelRemover(curL));
+               }
+      },
+
+
+      { setup: function (cs) {
+                 traceW.okToSubmit = true;
+                 traceW.msg("Press Enter...")
+                 curL = label($("#formula-entry"), "Press enter...", "left")
+                 cs.nextStepOnKeyClickOrTimeout(-1, labelRemover(curL), 13)
+               }
+      },
+
+      { setup: function (cs) {
+                 curL = label($("#score-div"), "Player 1 gets 8 points<br>for the invariant n>i", "left")
+                 cs.nextStepOnKeyClickOrTimeout(5000, () => {removeLabel(curL); }, 0)
+               }
+      },
+
+      { setup: function (cs) {
+                    curL = label($('#sticky2'), "", "up")
+                    curL1 = label($('#pnum'), "", "up")
+                    curL2 = label($('#data-display2'), "Blue color indicates that<br>it's Player 2's turn", "up")
+                    cs.nextStepOnKeyClickOrTimeout(stepTimeout, () => {
+                      removeLabel(curL); removeLabel(curL1); removeLabel(curL2); }, 32);
+                  }
+      },
+
+      { setup: function (cs) {
+                  curL = label($("#formula-entry2"), "Player 2, type n=i+2", "left")
+                  nextStepOnInvariant1(cs, "n=i+2", labelRemover(curL));
+               }
+      },
+
+
+      { setup: function (cs) {
+                 allowSwitch = false;
+                 allowBonus = false;
+                 traceW2.okToSubmit = true;
+                 traceW2.msg("Press Enter...")
+                 curL = label($("#formula-entry2"), "Press enter...", "left")
+                 cs.nextStepOnKeyClickOrTimeout(-1, labelRemover(curL), 13)
+               }
+      },
+
+      { setup: function (cs) {
+                 cs.nextStepOnKeyClickOrTimeout(1000, labelRemover(curL), 0)
+               }
+      },
+
+      { setup: function (cs) {
+                 curL = label($("#score-div2"), "Player 2 gets 4 points<br>for the invariant n=i+2", "left")
+                 cs.nextStepOnKeyClickOrTimeout(-1, labelRemover(curL), 32)
+               }
+      },
+
+      { setup: function (cs) {
+                 showImplication(2, $('#good_20'), $('#good_10'));
+                 curL = label($("#good_20"), "This invariant implies<br>Player 1's invariant", "left")
+                 curL1 = label($("#good_10"), "", "left")
+                 cs.nextStepOnKeyClickOrTimeout(-1, () => {removeLabel(curL); removeLabel(curL1);}, 32)
+               }
+      },
+
+      { setup: function (cs) {
+                 curL = label($("#good_20"), "Since n = i + 2,<br>n is certainly greater than i", "left")
+                 curL1 = label($("#good_10"), "", "left")
+                 cs.nextStepOnKeyClickOrTimeout(-1, () => {removeLabel(curL); removeLabel(curL1);}, 32)
+               }
+      },
+
+      { setup: function (cs) {
+                 $("#good_10").addClass("implied");
+                 scoreW2.add(5);
+                 allowBonus = true;
+                 allowSwitch = true;
+                 curL = label($("#score-div2"), "&nbsp;&nbsp;So Player 2 gets 5 bonus points<br>for finding a stronger invariant", "left")
+                 cs.nextStepOnKeyClickOrTimeout(-1, labelRemover(curL), 32)
+               }
+      },
+
+      { setup: function (cs) {
+                 $(".curved_arrow").fadeOut(1000);
+                 $("#btn-switch2").click();
+                 cs.nextStepOnKeyClickOrTimeout(2000, () => {}, 32)
+               }
+      },
+
+      { setup: function (cs) {
+                  $('.overlay').html("<h1>Your goal is to win the game<br>by scoring more than your opponent.<br><br></h1><h2>Remember that you get bonus points<br>if your invariants are stronger than your opponent's.</h2>")
+                  $('.overlay').fadeIn(0, function () {
+                    cs.nextStepOnKeyClickOrTimeout(stepTimeout, ()=>0, 32)
+                  })
+               }
+      },
+
+      {
+        setup: function (cs) {
+          $(".overlay").fadeOut(fadeDelay, function () {
+            allowSwitch = true;
+            allowBonus = true;
+            $('#next-level').show();
+            curL = label($("#next-level"), "Proceed to the game", "up")
+            cs.nextStepOnKeyClickOrTimeout(stepTimeout, labelRemover(curL), 32)
+          });
+        }
+      },
+
+      { setup: function (cs) {
+               }
+      },
+    ]
+
+    var hidePlayer1 = function() {
+      $('#left').hide();
+      $('#sticky').hide();
+      $('#data-display').hide();
+      $('#traces-menu').hide();
+      $('#btn-switch').hide();
+    }
+
+    var hidePlayer2 = function() {
+      $('#left2').hide();
+      $('#sticky2').hide();
+      $('#data-display2').hide();
+      $('#traces-menu2').hide();
+      $('#btn-switch2').hide();
+    }
+
+    var showPlayer1 = function() {
+      $('#curPlayer').html('1');
+      $('#left').show();
+      $('#sticky').show();
+      $('#data-display').show();
+      $('#score-div-row').show();
+      $('#discovered-invariants-div').show();
+      $('#traces-menu').show();
+      $('#btn-switch').show();
+
+      if(curLvlCompleted == curLvl) {
+          $('#next-lvl').show();
+      }
+
+      $('#next-lvl').show();
+      $('#next-lvl2').show();
+
+      if(player1Done || player2Done) {
+        $('#next-lvl').show();
+        $('#next-lvl2').show();
+      }
+    }
+
+    var showPlayer2 = function() {
+      $('#curPlayer').html('2');
+      $('#left2').show();
+      $('#sticky2').show();
+      $('#data-display2').show();
+      $('#score-div-row2').show();
+      $('#discovered-invariants-div2').show();
+      $('#traces-menu2').show();
+      $('#btn-switch2').show();
+
+      if(curLvlCompleted2 == curLvl2) {
+          $('#next-lvl2').show();
+      }
+
+      $('#next-lvl').show();
+      $('#next-lvl2').show();
+
+      if(player1Done || player2Done) {
+        $('#next-lvl').show();
+        $('#next-lvl2').show();
+      }
+    }
+
+    var switchPlayer = function() {
+      $('#help-content').slideUp(200);
+      traceW.clearError();
+      traceW2.clearError();
+
+      if(!allowSwitch) {
+        return;
+      }
+
+      if(player == 1) {
+        hidePlayer2();
+        showPlayer1();
+
+        $("#pnum").removeClass("player2")
+        $("#pnum").addClass("player1")
+
+        $("#formula-entry").focus();
+      }
+      else if(player == 2) {
+        hidePlayer1();
+        showPlayer2();
+
+        $("#pnum").removeClass("player1")
+        $("#pnum").addClass("player2")
+
+        $("#formula-entry2").focus();
+      }
+    }
+
+
+    $(document).ready(function() {
+      rpc = new $.JsonRpcClient({ ajaxUrl: "/api" })
+
+      progW = new TwoPlayerProgressWindow(1, $('#discovered-invariants-div'));
+      scoreW = new TwoPlayerScoreWindow(1, $('#score-div'));
+      traceW = new TwoPlayerTracesWindow(1, $('#data-display'));
+      stickyW = new TwoPlayerStickyWindow(1, $('#sticky'))
+      gameLogic = new TwoPlayerGameLogic(1, traceW, progW, scoreW, stickyW);
+
+      progW2 = new TwoPlayerProgressWindow(2, $('#discovered-invariants-div2'));
+      scoreW2 = new TwoPlayerScoreWindow(2, $('#score-div2'));
+      traceW2 = new TwoPlayerTracesWindow(2, $('#data-display2'));
+      stickyW2 = new TwoPlayerStickyWindow(2, $('#sticky2'))
+      gameLogic2 = new TwoPlayerGameLogic(2, traceW2, progW2, scoreW2, stickyW2);
+
+      if(player = 1) {
+        $('#btn-switch').show();
+        $('#btn-switch2').hide();
+      }
+      else if(player = 2) {
+        $('#btn-switch').hide();
+        $('#btn-switch2').show();
+      }
+
+      $('#next-level').click(function() {
+        window.location.replace('game_twop.html');
+      })
+
+      $('#btn-switch').click(function() {
+        player = 2;
+        switchPlayer();
+      })
+
+      $('#btn-switch2').click(function() {
+        player = 1;
+        switchPlayer();
+      })
+
+      var curScript = new Script(tutorialScript);
+    })
+
+  </script>
+</head>
+
+<body>
+  <div class='container'>
+    <div class='row'>
+
+      <div class='row centered player player1' id='pnum'>
+        Player: <span id='curPlayer'>1</span>
+          <span id='next_move'>
+            <button id='btn-switch' class='btn-show-hint1'>Pass</button>
+          </span>
+          <span id='next_move2'>
+            <button id='btn-switch2' class='btn-show-hint2'>Pass</button>
+          </span>
+      </div>
+
+      <div class='col-md-1 box stickyWindow' id='sticky'>
+      </div>
+
+      <div class='col-md-1 box stickyWindow' id='sticky2' style="display:none;">
+      </div>
+
+      <div class='col-md-6' id='middle'>
+        <div class='row' id='data-display' style="font-family:monospace;">
+        </div>
+
+        <div class='row' id='data-display2'
+              style="font-family:monospace; display:none;">
+        </div>
+
+        <div class='row-md-6' id='done-row'>
+          <div class='col-md-6 col-md-offset-4' style='margin-top: 30px;'>
+            <button id='next-level' class='btn-next' style='display: none'>Play Game</button>
+          </div>
+        </div>
+      </div>
+
+      <div class='col-md-3'
+            style="margin: 15px; margin-top: 0px; margin-bottom: 0px;">
+
+        <div id='score-div-row' class='row positioned box progressWindow1'>
+          <div style='color: red;'>
+            <strong>Player 1</strong>
+          </div>
+          <div id='score-div' style='border-top-right-radius: 0px; border-top-left-radius: 0px; color: red;'>
+          </div>
+        </div>
+
+        <div class='row good centered positioned progressWindow1'
+            id='discovered-invariants-div'>
+        </div>
+
+        <hr>
+
+        <div id='score-div-row2' class='row positioned box progressWindow2'>
+          <div style='color: blue;'>
+            <strong>Player 2</strong>
+          </div>
+          <div id='score-div2' style='border-top-right-radius: 0px; border-top-left-radius: 0px; color: blue;'>
+          </div>
+        </div>
+
+        <div class='row good centered positioned progressWindow2'
+            id='discovered-invariants-div2'>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class='overlay text-center' style='display: none;'>
+  </div>
+
+</body>
+</html>
