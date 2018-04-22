@@ -1,6 +1,11 @@
 /* Requires curvedarrow.ts */
+import {invariantT} from "./types"
+import {impliedPairs} from "./logic";
+import {htmlToInv} from "./pp";
+import {esprimaToStr} from "./eval";
+import {parse} from "esprima";
 
-function getAllPlayer1Inv() {
+export function getAllPlayer1Inv() {
   let player1HTML = $("#good-invariants").children();
   let player1Invs: string[] = [];
 
@@ -22,7 +27,7 @@ function getLastPlayer1Inv(): string {
 }
 
 
-function getAllPlayer2Inv() {
+export function getAllPlayer2Inv() {
   let player2HTML = $("#good-invariants2").children();
   let player2Invs: string[] = [];
 
@@ -81,7 +86,7 @@ function showImplication(player, src, dst) {
 }
 
 
-function getBonus(player, fn) {
+export function getBonus(player, fn) {
 
   let bonus: number = 5;
 
@@ -89,8 +94,8 @@ function getBonus(player, fn) {
     let newInv: string = getLastPlayer1Inv();
     let player2Invs = getAllPlayer2Inv();
 
-    let newInvEs: invariantT = esprima.parse(newInv);
-    let player2InvsEs: invariantT[] = player2Invs.map(esprima.parse);
+    let newInvEs: invariantT = parse(newInv);
+    let player2InvsEs: invariantT[] = player2Invs.map((s:string)=>parse(s));
 
     // allowSwitch = true;
     impliedPairs([newInvEs], player2InvsEs, function(x) {
@@ -119,8 +124,8 @@ function getBonus(player, fn) {
     let newInv: string = getLastPlayer2Inv();
     let player1Invs = getAllPlayer1Inv();
 
-    let newInvEs: invariantT = esprima.parse(newInv);
-    let player1InvsEs: invariantT[] = player1Invs.map(esprima.parse);
+    let newInvEs: invariantT = parse(newInv);
+    let player1InvsEs: invariantT[] = player1Invs.map((s:string) => parse(s));
 
     // allowSwitch = true;
     impliedPairs([newInvEs], player1InvsEs, function(x) {

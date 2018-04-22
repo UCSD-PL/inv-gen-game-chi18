@@ -1,4 +1,7 @@
-interface IProgressWindow {
+import {invariantT} from "./types";
+import {invToHTML} from "./pp";
+
+export interface IProgressWindow {
   addInvariant(key: string, invariant: invariantT): void;
   removeInvariant(key: string): void;
   markInvariant(key: string, state: string): void;
@@ -7,7 +10,7 @@ interface IProgressWindow {
   contains(key: string):  boolean;
 }
 
-class ProgressWindow implements IProgressWindow {
+export class ProgressWindow implements IProgressWindow {
   invMap: { [ inv: string]: HTMLElement } = { };
   container: HTMLElement;
   ctr: number = 0;

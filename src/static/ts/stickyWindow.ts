@@ -1,4 +1,7 @@
-class StickyWindow extends BaseContainer<IPowerup> {
+import {IPowerup} from "./powerups";
+import {BaseContainer} from "./container";
+
+export class StickyWindow extends BaseContainer<IPowerup> {
   addElement(key: string, pwup: IPowerup, rep: JQuery): HTMLElement {
     let div = $(this.parent).children("div")[0]
     $(div).append(pwup.element);
@@ -40,7 +43,7 @@ class WideStickyWindow extends StickyWindow {
 }
 
 
-class TwoPlayerStickyWindow extends StickyWindow {
+export class TwoPlayerStickyWindow extends StickyWindow {
   player: number;
 
   constructor(public playerNum: number, public parent: HTMLElement) {

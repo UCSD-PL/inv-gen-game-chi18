@@ -1,5 +1,9 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "esprima": ["."]
+    },
     "declaration": false,
     "module": "amd",
     "noImplicitAny": false,
@@ -9,18 +13,10 @@
     "removeComments": true,
     "rootDir": ".",
     "suppressImplicitAnyIndexErrors": true,
-    "target": "es6"
+    "target": "es6",
+    "typeRoots": ["../../node_modules/@types", "../../node_modules", "../../node_modules/@orange-games/"],
+    "types": ["esprima", "estree", "jquery", "jquery-jsonrpcclient", "jqueryui"]
   },
-  "exclude": [
-    "typings/main.d.ts",
-    "typings/main"
-  ],
-  "filesGlob": [
-    "ts/*.ts",
-    "typings/browser/**",
-    "!typings/main/**",
-    "!typings/main.d.ts"
-  ],
   "formatCodeOptions": {
     "indentSize": 2,
     "tabSize": 4,
@@ -54,11 +50,8 @@
     "ts/traceWindow.ts",
     "ts/ctrexTracesWindow.ts",
     "ts/util.ts",
-    "typings/browser/ambient/esprima/index.d.ts",
-    "typings/browser/ambient/estree/index.d.ts",
-    "typings/browser/ambient/jquery-jsonrpcclient/index.d.ts",
-    "typings/browser/ambient/jquery/index.d.ts",
-    "typings/browser/ambient/jqueryui/index.d.ts"
+    "ts/types.ts",
+    "ts/main.ts"
   ],
   "atom": {
     "rewriteTsconfig": true

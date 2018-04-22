@@ -1,8 +1,13 @@
+import {assert, Args, label, removeLabel, min, setlen, isMember, Label} from "./util";
+import {invariantT} from "./types";
+import {Level} from "./level";
+import {identifiers, literals, operators} from "./eval";
+
 type holdsT = (inv: invariantT) => boolean
 type transformT = (score: number) => number
 type appliesT = (lvl: Level) => boolean
 
-interface IPowerup {
+export interface IPowerup {
   id: string;
   html: string;
   element: JQuery;
@@ -46,7 +51,7 @@ class BasePowerup implements IPowerup {
 }
 
 // NOTE: This probably makes more sense as a mixin/interface pair.
-class MultiplierPowerup extends BasePowerup {
+export class MultiplierPowerup extends BasePowerup {
   constructor(public id: string,
               public html: string,
               public holds: holdsT,
@@ -97,7 +102,7 @@ class NewVarPowerup extends MultiplierPowerup implements ILevelPowerup, IOneShot
   }
 }
 
-class VarOnlyPowerup extends MultiplierPowerup {
+export class VarOnlyPowerup extends MultiplierPowerup {
   constructor(multiplier: number = 2) {
     super("var only",
       "<span style='position: absolute; left:13px'>1</span>" +
@@ -120,8 +125,8 @@ class UseXVarsPwup extends MultiplierPowerup {
   }
 }
 
-class UseOpsPwup extends MultiplierPowerup {
-  constructor(ops: [ string ], html: string, name: string, multiplier: number = 2) {
+export class UseOpsPwup extends MultiplierPowerup {
+  constructor(ops: string[], html: string, name: string, multiplier: number = 2) {
     super("Use ops: " + ops,
       html,
       (inv: invariantT) => {
@@ -137,13 +142,13 @@ class UseOpsPwup extends MultiplierPowerup {
   }
 }
 
-interface IPowerupSuggestion {
+export interface IPowerupSuggestion {
   clear(lvl: Level): void;
   invariantTried(inv: invariantT): void;
   getPwups(): IPowerup[];
 }
 
-class PowerupSuggestionAll implements IPowerupSuggestion {
+export class PowerupSuggestionAll implements IPowerupSuggestion {
   all_pwups: IPowerup[];
   age: { [ind: string]: number } = {};
   protected lbls : Label[] = [];
@@ -220,7 +225,7 @@ class PowerupSuggestionAll implements IPowerupSuggestion {
   }
 }
 
-class PowerupSuggestionFullHistory implements IPowerupSuggestion {
+export class PowerupSuggestionFullHistory implements IPowerupSuggestion {
   all_pwups: IPowerup[] = [];
   actual: IPowerup[] = [];
   age: { [ind: string]: number } = {};
@@ -415,7 +420,7 @@ class TwoPlayerUseXVarsPwup extends TwoPlayerMultiplierPowerup {
 
 class TwoPlayerUseOpsPwup extends TwoPlayerMultiplierPowerup {
   constructor(playerNum: number,
-              ops: [ string ],
+              ops: string[],
               html: string,
               name: string,
               multiplier: number = 2) {
@@ -436,7 +441,7 @@ class TwoPlayerUseOpsPwup extends TwoPlayerMultiplierPowerup {
 }
 
 
-class TwoPlayerPowerupSuggestionFullHistory implements IPowerupSuggestion {
+export class TwoPlayerPowerupSuggestionFullHistory implements IPowerupSuggestion {
   all_pwups: IPowerup[] = [];
   actual: IPowerup[] = [];
   age: { [ind: string]: number } = {};

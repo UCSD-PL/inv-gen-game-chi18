@@ -4,6 +4,7 @@ THIRD_PARTY_DEPS=bootstrap.min.css \
 								 jquery-1.12.0.min.js \
 								 jquery.jsonrpcclient.js\
 								 jquery.color-2.1.2.min.js\
+								 require.js\
 								 jquery-ui-1.11.4
 #								 help-icon.png
 #								 doge.jpg\
@@ -12,7 +13,7 @@ THIRD_PARTY_DEPS=bootstrap.min.css \
 all: $(THIRD_PARTY_DEPS) ts-files
 
 typings:
-	typings install
+	npm install
 
 ts-files: typings
 	tsc
@@ -34,6 +35,9 @@ jquery.jsonrpcclient.js:
 
 jquery.color-2.1.2.min.js:
 	wget https://code.jquery.com/color/jquery.color-2.1.2.min.js
+
+require.js:
+	wget http://requirejs.org/docs/release/2.3.5/minified/require.js
 
 #crafty-min.js:
 #	wget https://github.com/craftyjs/Crafty/releases/download/0.7.0/crafty-min.js

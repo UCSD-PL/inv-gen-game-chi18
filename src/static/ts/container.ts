@@ -1,6 +1,6 @@
 type HTMLLikeT = string | HTMLElement | JQuery
 
-interface IContainer<T> {
+export interface IContainer<T> {
   add(key: string, obj: T, representation: HTMLLikeT): void;
   addElement(key: string, obj: T, representation: HTMLLikeT): HTMLElement;
   remove(key: string): void;
@@ -12,7 +12,7 @@ interface IContainer<T> {
   set(vals: [ string, T, string ][]): void;
 }
 
-abstract class BaseContainer<T> implements IContainer<T> {
+export abstract class BaseContainer<T> implements IContainer<T> {
   objMap: { [ key: string ] : T }
   domMap: { [ key: string ] : HTMLElement }
 

@@ -1,4 +1,20 @@
-class RoundsGameLogic extends BaseGameLogic {
+import {assert, difference, toStrset, isEmpty, any_mem} from "./util";
+import {logEvent} from "./rpc"
+import {ITracesWindow} from "./traceWindow";
+import {StickyWindow} from "./stickyWindow";
+import {PowerupSuggestionAll, IPowerup, MultiplierPowerup} from "./powerups";
+import {tryAndVerify, simplify, isTautology, impliedBy} from "./logic";
+import {DynamicLevel} from "./level";
+import {dataT, invariantT} from "./types";
+import {BaseGameLogic, UserInvariant, curLvlSet} from "./gameLogic";
+import {IProgressWindow} from "./progressWindow";
+import {invPP} from "./pp"
+import {invToJS, fixVariableCase, identifiers, esprimaToStr, ImmediateErrorException, invEval, evalResultBool, interpretError} from "./eval";
+import {parse} from "esprima";
+import {Node as ESNode} from "estree";
+import {ScoreWindow} from "scoreWindow";
+
+export class RoundsGameLogic extends BaseGameLogic {
   foundJSInv: UserInvariant[] = [];
   invMap: { [ id: string ] : UserInvariant } = {};
   lvlPassedF: boolean = false;
@@ -48,7 +64,7 @@ class RoundsGameLogic extends BaseGameLogic {
       }
     }
 
-    logEvent("PowerupsActivated", [curLvlSet, this.curLvl.id, inv, pwupsActivated]);
+    logEvent("PowerupsActivated", [curLvlSet(), this.curLvl.id, inv, pwupsActivated]);
 
     if (hold.length == 0) {
       this.pwupSuggestion.invariantTried(inv);
@@ -66,7 +82,7 @@ class RoundsGameLogic extends BaseGameLogic {
     };
     if (this.foundJSInv.length > 0) {
       var invToTry = this.foundJSInv.filter((ui)=>!contains(ui.id, this.overfittedInvs));
-      tryAndVerify(curLvlSet, this.curLvl.id, invToTry.map((x)=>x.canonForm),
+      tryAndVerify(curLvlSet(), this.curLvl.id, invToTry.map((x)=>x.canonForm),
         ([overfitted, nonind, sound, post_ctrex, direct_ctrex]) => {
           if (sound.length > 0) {
             cb(post_ctrex.length == 0, [overfitted, nonind, sound, post_ctrex, direct_ctrex]);
@@ -87,7 +103,7 @@ class RoundsGameLogic extends BaseGameLogic {
     let gl = this;
     let inv = invPP(this.tracesW.curExp().trim());
     let desugaredInv = invToJS(inv)
-    var parsedInv: ESTree.Node = null;
+    var parsedInv: ESNode = null;
 
     this.userInputCb(inv);
 
@@ -97,7 +113,7 @@ class RoundsGameLogic extends BaseGameLogic {
     }
 
     try {
-      parsedInv = esprima.parse(desugaredInv);
+      parsedInv = parse(desugaredInv);
     } catch (err) {
       //this.tracesW.delayedError(inv + " is not a valid expression.");
       return;
@@ -126,10 +142,10 @@ class RoundsGameLogic extends BaseGameLogic {
       if (!evalResultBool(res))
         return;
 
-      simplify(jsInv, (simplInv: ESTree.Node) => {
+      simplify(jsInv, (simplInv: ESNode) => {
         let ui: UserInvariant = new UserInvariant(inv, jsInv, simplInv)
         logEvent("TriedInvariant",
-                 [curLvlSet,
+                 [curLvlSet(),
                   gl.curLvl.id,
                   ui.rawUserInp,
                   ui.canonForm,
@@ -164,7 +180,7 @@ class RoundsGameLogic extends BaseGameLogic {
 
             let allCandidates = gl.foundJSInv.map((x)=>x.canonForm);
 
-            impliedBy(allCandidates, ui.canonForm, function (x: ESTree.Node[]) {
+            impliedBy(allCandidates, ui.canonForm, function (x: ESNode[]) {
               if (x.length > 0) {
                 gl.progressW.markInvariant(esprimaToStr(x[0]), "implies")
                 gl.tracesW.immediateError("This is weaker than a found expression!")
@@ -188,7 +204,7 @@ class RoundsGameLogic extends BaseGameLogic {
                 //(<CounterexTracesWindow>gl.tracesW).clearNegRows();
 
                 logEvent("FoundInvariant",
-                         [curLvlSet,
+                         [curLvlSet(),
                           gl.curLvl.id,
                           ui.rawUserInp,
                           ui.canonForm,
@@ -202,7 +218,7 @@ class RoundsGameLogic extends BaseGameLogic {
                       gl.lvlPassedF = true;
                       gl.lvlPassedCb();
                       logEvent("FinishLevel",
-                               [curLvlSet,
+                               [curLvlSet(),
                                 gl.curLvl.id,
                                 false,
                                 gl.foundJSInv.map((x)=>x.rawUserInp),
@@ -243,7 +259,7 @@ class RoundsGameLogic extends BaseGameLogic {
                         return;
 
                       logEvent("FinishLevel",
-                               [curLvlSet,
+                               [curLvlSet(),
                                 gl.curLvl.id,
                                 sat,
                                 gl.foundJSInv.map((x)=>x.rawUserInp),
@@ -300,7 +316,7 @@ class RoundsGameLogic extends BaseGameLogic {
     */
 
     for (let [rawInv, canonInv] of lvl.startingInvs) {
-      let jsInv = esprimaToStr(esprima.parse(invToJS(rawInv)));
+      let jsInv = esprimaToStr(parse(invToJS(rawInv)));
       let ui = new UserInvariant(rawInv, jsInv, canonInv);
       this.foundJSInv.push(ui);
       this.invMap[ui.id] = ui;
@@ -311,7 +327,7 @@ class RoundsGameLogic extends BaseGameLogic {
     if (this.lvlLoadedCb)
       this.lvlLoadedCb();
     logEvent("StartLevel",
-             [curLvlSet,
+             [curLvlSet(),
               this.curLvl.id,
               this.curLvl.colSwap,
               this.curLvl.isReplay()]);
@@ -319,12 +335,12 @@ class RoundsGameLogic extends BaseGameLogic {
 
   skipToNextLvl() : void {
     logEvent("SkipToNextLevel",
-             [curLvlSet,
+             [curLvlSet(),
               this.curLvl.id,
               this.curLvl.colSwap,
               this.curLvl.isReplay()]);
     logEvent("FinishLevel",
-             [curLvlSet,
+             [curLvlSet(),
               this.curLvl.id,
               false,
               this.foundJSInv.map((x)=>x.rawUserInp),

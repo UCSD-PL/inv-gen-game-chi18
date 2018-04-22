@@ -1,4 +1,4 @@
-class ScoreWindow {
+export class ScoreWindow {
   score: number = 0;
   constructor(public parent: HTMLElement) {
     $(this.parent).html("");
@@ -25,7 +25,7 @@ class ScoreWindow {
   }
 }
 
-class TwoPlayerScoreWindow extends ScoreWindow {
+export class TwoPlayerScoreWindow extends ScoreWindow {
   player: number = 0;
 
   constructor(public playerNum: number, public parent: HTMLElement) {

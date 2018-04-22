@@ -1,4 +1,7 @@
-function invPP(inv: string): string {
+import {invariantT} from "./types";
+import {esprimaToStr} from "./eval";
+
+export function invPP(inv: string): string {
   let eqFixed: string = inv.replace(/===/g, "=").replace(/==/g, "=");
   //let eqFixed: string = inv.replace(/===/g, "=").replace(/==/g, "=").replace(/\s/g, "");
   // let mulFixed: string = eqFixed.replace(/([0-9])([a-zA-Z])/g, (s, g1, g2) => g1 + "*" + g2);
@@ -8,7 +11,7 @@ function invPP(inv: string): string {
   return caseFixed;
 }
 
-function invToHTML(inv: invariantT): string{
+export function invToHTML(inv: invariantT): string{
   return esprimaToStr(inv)
     //.replace(/->/g, "&rArr;")
     .replace(/^\(/g, "") // remove starting parenthesis (there is always one)
@@ -21,7 +24,7 @@ function invToHTML(inv: invariantT): string{
     .replace(/&&/g, "&amp;&amp;");
 }
 
-function htmlToInv(html: string): string {
+export function htmlToInv(html: string): string {
   let h1: string = html.replace("=", "==");
   return h1
     .replace(/&lt;/g, "<")

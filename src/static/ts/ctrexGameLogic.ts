@@ -1,4 +1,21 @@
-class CounterexGameLogic extends BaseGameLogic {
+import {dataT, invariantT} from "./types"
+import {BaseGameLogic,  UserInvariant, curLvlSet} from "./gameLogic";
+import {error, toStrset, isEmpty, difference, any_mem, assert} from "./util"
+import {Level, DynamicLevel} from "./level";
+import {esprimaToStr, invToJS, invEval, evalResultBool, interpretError, fixVariableCase, identifiers, ImmediateErrorException, generalizeInv} from "./eval";
+import {CounterexTracesWindow} from "./ctrexTracesWindow";
+import {ITracesWindow} from "./traceWindow";
+import {IPowerupSuggestion, IPowerup, PowerupSuggestionAll, MultiplierPowerup, PowerupSuggestionFullHistory} from "./powerups"
+import {equivalentPairs, impliedBy, isTautology, simplify, tryAndVerify} from "./logic";
+import {IProgressWindow} from "./progressWindow";
+import {StickyWindow} from "./stickyWindow";
+import {invPP} from "./pp";
+import {parse} from "esprima";
+import {Node as ESNode} from "estree"
+import {logEvent} from "./rpc" 
+import {ScoreWindow} from "scoreWindow"
+
+export class CounterexGameLogic extends BaseGameLogic {
   foundJSInv: UserInvariant[] = [];
   invMap: { [ id: string ] : UserInvariant } = {};
   lvlPassedF: boolean = false;
@@ -48,7 +65,7 @@ class CounterexGameLogic extends BaseGameLogic {
       }
     }
 
-    logEvent("PowerupsActivated", [curLvlSet, this.curLvl.id, inv, pwupsActivated]);
+    logEvent("PowerupsActivated", [curLvlSet(), this.curLvl.id, inv, pwupsActivated]);
 
     if (hold.length == 0) {
       this.pwupSuggestion.invariantTried(inv);
@@ -66,7 +83,7 @@ class CounterexGameLogic extends BaseGameLogic {
     };
     if (this.foundJSInv.length > 0) {
       var invToTry = this.foundJSInv.filter((ui)=>!contains(ui.id, this.overfittedInvs));
-      tryAndVerify(curLvlSet, this.curLvl.id, invToTry.map((x)=>x.canonForm),
+      tryAndVerify(curLvlSet(), this.curLvl.id, invToTry.map((x)=>x.canonForm),
         ([overfitted, nonind, sound, post_ctrex, direct_ctrex]) => {
           if (sound.length > 0) {
             cb(post_ctrex.length == 0, [overfitted, nonind, sound, post_ctrex, direct_ctrex]);
@@ -87,7 +104,7 @@ class CounterexGameLogic extends BaseGameLogic {
     let gl = this;
     let inv = invPP(this.tracesW.curExp().trim());
     let desugaredInv = invToJS(inv)
-    var parsedInv: ESTree.Node = null;
+    var parsedInv: ESNode = null;
 
     this.userInputCb(inv);
 
@@ -97,7 +114,7 @@ class CounterexGameLogic extends BaseGameLogic {
     }
 
     try {
-      parsedInv = esprima.parse(desugaredInv);
+      parsedInv = parse(desugaredInv);
     } catch (err) {
       //this.tracesW.delayedError(inv + " is not a valid expression.");
       return;
@@ -126,10 +143,10 @@ class CounterexGameLogic extends BaseGameLogic {
       if (!evalResultBool(res))
         return;
 
-      simplify(jsInv, (simplInv: ESTree.Node) => {
+      simplify(jsInv, (simplInv: ESNode) => {
         let ui: UserInvariant = new UserInvariant(inv, jsInv, simplInv)
         logEvent("TriedInvariant",
-                 [curLvlSet,
+                 [curLvlSet(),
                   gl.curLvl.id,
                   ui.rawUserInp,
                   ui.canonForm,
@@ -164,7 +181,7 @@ class CounterexGameLogic extends BaseGameLogic {
 
             let allCandidates = gl.foundJSInv.map((x)=>x.canonForm);
 
-            impliedBy(allCandidates, ui.canonForm, function (x: ESTree.Node[]) {
+            impliedBy(allCandidates, ui.canonForm, function (x: ESNode[]) {
               if (x.length > 0) {
                 gl.progressW.markInvariant(esprimaToStr(x[0]), "implies")
                 gl.tracesW.immediateError("This is weaker than a found expression!")
@@ -188,7 +205,7 @@ class CounterexGameLogic extends BaseGameLogic {
                 (<CounterexTracesWindow>gl.tracesW).clearNegRows();
 
                 logEvent("FoundInvariant",
-                         [curLvlSet,
+                         [curLvlSet(),
                           gl.curLvl.id,
                           ui.rawUserInp,
                           ui.canonForm,
@@ -202,7 +219,7 @@ class CounterexGameLogic extends BaseGameLogic {
                       gl.lvlPassedF = true;
                       gl.lvlPassedCb();
                       logEvent("FinishLevel",
-                               [curLvlSet,
+                               [curLvlSet(),
                                 gl.curLvl.id,
                                 false,
                                 gl.foundJSInv.map((x)=>x.rawUserInp),
@@ -241,7 +258,7 @@ class CounterexGameLogic extends BaseGameLogic {
                         return;
 
                       logEvent("FinishLevel",
-                               [curLvlSet,
+                               [curLvlSet(),
                                 gl.curLvl.id,
                                 sat,
                                 gl.foundJSInv.map((x)=>x.rawUserInp),
@@ -281,7 +298,7 @@ class CounterexGameLogic extends BaseGameLogic {
     this.allData[lvl.id][2]  = this.allData[lvl.id][2].concat(lvl.data[2])
 
     for (let [rawInv, canonInv] of lvl.startingInvs) {
-      let jsInv = esprimaToStr(esprima.parse(invToJS(rawInv)));
+      let jsInv = esprimaToStr(parse(invToJS(rawInv)));
       let ui = new UserInvariant(rawInv, jsInv, canonInv);
       this.foundJSInv.push(ui);
       this.invMap[ui.id] = ui;
@@ -292,7 +309,7 @@ class CounterexGameLogic extends BaseGameLogic {
     if (this.lvlLoadedCb)
       this.lvlLoadedCb();
     logEvent("StartLevel",
-             [curLvlSet,
+             [curLvlSet(),
               this.curLvl.id,
               this.curLvl.colSwap,
               this.curLvl.isReplay()]);
@@ -300,12 +317,12 @@ class CounterexGameLogic extends BaseGameLogic {
 
   skipToNextLvl() : void {
     logEvent("SkipToNextLevel",
-             [curLvlSet,
+             [curLvlSet(),
               this.curLvl.id,
               this.curLvl.colSwap,
               this.curLvl.isReplay()]);
     logEvent("FinishLevel",
-             [curLvlSet,
+             [curLvlSet(),
               this.curLvl.id,
               false,
               this.foundJSInv.map((x)=>x.rawUserInp),

@@ -1,15 +1,20 @@
+import {invariantT} from "./types";
+import {strset, union, emptyStrset, assert} from "./util";
+import {parse} from "esprima";
+import {Node as ESNode, Program, ExpressionStatement, BinaryExpression, LogicalExpression, UnaryExpression,Identifier, Literal, LogicalOperator} from 'estree';
+
 var notDefRe = /(.*) is not defined/;
 type VarValMapT = { [varName: string] : any };
 
-class InvException extends Error{
+export class InvException extends Error{
   constructor(public name: string, public message: string) { super(message); }
 }
 
-class ImmediateErrorException extends InvException {
+export class ImmediateErrorException extends InvException {
   constructor(public name: string, public message: string) { super(name, message); }
 }
 
-function interpretError(err: Error): (string|Error) {
+export function interpretError(err: Error): (string|Error) {
   if (err.name === "ReferenceError") {
     if (err.message.match(notDefRe))
       return err.message.match(notDefRe)[1] + " is not defined.";
@@ -28,7 +33,7 @@ function interpretError(err: Error): (string|Error) {
   return err;
 }
 
-function invToJS(inv: string): string {
+export function invToJS(inv: string): string {
   return inv.replace(/[^<>]=[^>]/g, function(v) { return v[0] + "==" + v[2]; })
             .replace(/=>/g, "->")
             .replace(/(.+)if(.+)/g, "($2) -> ($1)")
@@ -89,7 +94,7 @@ function same_type(arg1: any, arg2: any, op: string): boolean {
   return true;
 }
 
-function invEval(inv:invariantT, variables: string[], data: any[][]): any[] {
+export function invEval(inv:invariantT, variables: string[], data: any[][]): any[] {
   // Sort variable names in order of decreasing length
   let vars: [string, number][] = variables.map(
     function(val, ind, _) { return <[string, number]>[val, ind]; });
@@ -104,7 +109,7 @@ function invEval(inv:invariantT, variables: string[], data: any[][]): any[] {
   return holds_arr;
 }
 
-function evalResultBool(evalResult: any[]): boolean {
+export function evalResultBool(evalResult: any[]): boolean {
   for (let i in evalResult) {
     if (evalResult[i] instanceof Array)
       return evalResultBool(evalResult[i]);
@@ -114,29 +119,29 @@ function evalResultBool(evalResult: any[]): boolean {
   return true;
 }
 
-function estree_reduce<T>(t: ESTree.Node, cb: (n: ESTree.Node, args: T[]) => T): T {
+function estree_reduce<T>(t: ESNode, cb: (n: ESNode, args: T[]) => T): T {
   if (t.type === "Program") {
-    let p = <ESTree.Program>t;
-    let es = <ESTree.ExpressionStatement>p.body[0];
+    let p = <Program>t;
+    let es = <ExpressionStatement>p.body[0];
     return cb(t, [estree_reduce<T>(es.expression, cb)]);
   }
 
   if (t.type === "BinaryExpression") {
-    let be = <ESTree.BinaryExpression>t;
+    let be = <BinaryExpression>t;
     let lhs: T = estree_reduce(be.left, cb);
     let rhs: T = estree_reduce(be.right, cb);
     return cb(t, [lhs, rhs]);
   }
 
   if (t.type === "LogicalExpression") {
-    let be = <ESTree.LogicalExpression>t;
+    let be = <LogicalExpression>t;
     let lhs: T = estree_reduce(be.left, cb);
     let rhs: T = estree_reduce(be.right, cb);
     return cb(t, [lhs, rhs]);
   }
 
   if (t.type === "UnaryExpression") {
-    let ue = <ESTree.UnaryExpression>t;
+    let ue = <UnaryExpression>t;
     let exp: T = estree_reduce(ue.argument, cb);
     return cb(t, [exp]);
   }
@@ -152,13 +157,13 @@ function estree_reduce<T>(t: ESTree.Node, cb: (n: ESTree.Node, args: T[]) => T):
   assert(false, "Shouldn't get here");
 }
 
-function identifiers(inv: (string|ESTree.Node)): strset {
+export function identifiers(inv: (string|ESNode)): strset {
   if (typeof (inv) === "string")
-    return identifiers(esprima.parse(<string>inv));
+    return identifiers(parse(<string>inv));
 
-  let t = <ESTree.Node> inv;
+  let t = <ESNode> inv;
 
-  return estree_reduce(t, (nd: ESTree.Node, args: strset[]) => {
+  return estree_reduce(t, (nd: ESNode, args: strset[]) => {
     if (nd.type === "Program")
       return args[0];
 
@@ -172,7 +177,7 @@ function identifiers(inv: (string|ESTree.Node)): strset {
 
     if (nd.type === "Identifier") {
       let r: strset = emptyStrset();
-      r.add((<ESTree.Identifier>nd).name);
+      r.add((<Identifier>nd).name);
       return r;
     }
 
@@ -180,11 +185,11 @@ function identifiers(inv: (string|ESTree.Node)): strset {
   });
 }
 
-function literals(inv: (string|ESTree.Node)): strset {
+export function literals(inv: (string|ESNode)): strset {
   if (typeof (inv) === "string")
-    return literals(esprima.parse(<string>inv));
+    return literals(parse(<string>inv));
 
-  return estree_reduce(<ESTree.Node>inv, (nd: ESTree.Node, args: strset[]) => {
+  return estree_reduce(<ESNode>inv, (nd: ESNode, args: strset[]) => {
     if (nd.type === "Program")
       return args[0];
 
@@ -198,7 +203,7 @@ function literals(inv: (string|ESTree.Node)): strset {
 
     if (nd.type === "Literal") {
       let r: strset = emptyStrset();
-      r.add(<string>(<ESTree.Literal>nd).value);
+      r.add(<string>(<Literal>nd).value);
       return r;
     }
 
@@ -206,23 +211,23 @@ function literals(inv: (string|ESTree.Node)): strset {
   });
 }
 
-function operators(inv: (string|ESTree.Node)): strset {
+export function operators(inv: (string|ESNode)): strset {
   if (typeof (inv) === "string")
-    return operators(esprima.parse(<string>inv));
+    return operators(parse(<string>inv));
 
-  return estree_reduce(<ESTree.Node>inv, (nd: ESTree.Node, args: strset[]) => {
+  return estree_reduce(<ESNode>inv, (nd: ESNode, args: strset[]) => {
     if (nd.type === "Program")
       return args[0];
 
     if (nd.type === "BinaryExpression" || nd.type === "LogicalExpression") {
-      let be = <ESTree.BinaryExpression>nd;
+      let be = <BinaryExpression>nd;
       let p: strset = emptyStrset();
       p.add(be.operator);
       return union(union(p, args[0]), args[1]);
     }
 
     if (nd.type === "UnaryExpression") {
-      let ue = <ESTree.UnaryExpression>nd;
+      let ue = <UnaryExpression>nd;
       let p: strset = emptyStrset();
       p.add(ue.operator);
       return union(p, args[0]);
@@ -232,27 +237,27 @@ function operators(inv: (string|ESTree.Node)): strset {
   });
 }
 
-function replace(inv: (string|ESTree.Node), replF): ESTree.Node {
+function replace(inv: (string|ESNode), replF): ESNode {
   if (typeof (inv) === "string")
-    return replace(esprima.parse(<string>inv), replF);
+    return replace(parse(<string>inv), replF);
 
-  return estree_reduce(<ESTree.Node>inv, (nd: ESTree.Node, args: ESTree.Node[]): ESTree.Node => {
+  return estree_reduce(<ESNode>inv, (nd: ESNode, args: ESNode[]): ESNode => {
     if (nd.type === "Program") {
-      let p = <ESTree.Program>nd;
-      let es = <ESTree.ExpressionStatement>p.body[0];
-      return <ESTree.Program>{
+      let p = <Program>nd;
+      let es = <ExpressionStatement>p.body[0];
+      return <Program>{
         "type": "Program",
-        "body": [<ESTree.ExpressionStatement>{
+        "body": [<ExpressionStatement>{
           "type": "ExpressionStatement",
           "expression": replace(es.expression, replF)
         }],
-        "sourceType": "dummy"
+        "sourceType": "script"
       };
     }
 
     if (nd.type === "BinaryExpression") {
-      let be = <ESTree.BinaryExpression>nd;
-      return replF(<ESTree.BinaryExpression>{ "type": "BinaryExpression",
+      let be = <BinaryExpression>nd;
+      return replF(<BinaryExpression>{ "type": "BinaryExpression",
                      "operator": be.operator,
                      "left": args[0],
                      "right": args[1],
@@ -260,8 +265,8 @@ function replace(inv: (string|ESTree.Node), replF): ESTree.Node {
     }
 
     if (nd.type === "LogicalExpression") {
-      let le = <ESTree.LogicalExpression>nd;
-      return replF(<ESTree.LogicalExpression>{
+      let le = <LogicalExpression>nd;
+      return replF(<LogicalExpression>{
         "type": "LogicalExpression",
         "operator": le.operator,
         "left": args[0],
@@ -270,8 +275,8 @@ function replace(inv: (string|ESTree.Node), replF): ESTree.Node {
     }
 
     if (nd.type === "UnaryExpression") {
-      let ue = <ESTree.UnaryExpression>nd;
-      return replF(<ESTree.UnaryExpression>{
+      let ue = <UnaryExpression>nd;
+      return replF(<UnaryExpression>{
         "type": "UnaryExpression",
         "operator": ue.operator,
         "argument": args[0],
@@ -295,9 +300,9 @@ function instantiateVars(inv:invariantT, vals: VarValMapT): invariantT {
   })
 }
 
-function generalizeConsts(inv:string|ESTree.Node): [ESTree.Node, string[], string[]] {
+function generalizeConsts(inv:string|ESNode): [ESNode, string[], string[]] {
   let symConsts: string[] = [];
-  let newInv: ESTree.Node = replace(inv, (node) => {
+  let newInv: ESNode = replace(inv, (node) => {
     if (node.type == "Literal") {
       var newId = "a" + symConsts.length
       symConsts.push(newId)
@@ -308,10 +313,10 @@ function generalizeConsts(inv:string|ESTree.Node): [ESTree.Node, string[], strin
   return [ newInv, symConsts, [] ]
 }
 
-function generalizeInv(inv:string|ESTree.Node): [ESTree.Node, string[], string[]] {
+export function generalizeInv(inv:string|ESNode): [ESNode, string[], string[]] {
   let symConsts: string[] = [];
   let symVars: string[] = [];
-  let newInv: ESTree.Node = replace(inv, (node) => {
+  let newInv: ESNode = replace(inv, (node) => {
     if (node.type == "Literal") {
       var newId = "a" + symConsts.length
       symConsts.push(newId)
@@ -329,7 +334,7 @@ function generalizeInv(inv:string|ESTree.Node): [ESTree.Node, string[], string[]
   return [ newInv, symConsts, symVars ]
 }
 
-function fixVariableCase(inv: ESTree.Node, vars: string[]): ESTree.Node {
+export function fixVariableCase(inv: ESNode, vars: string[]): ESNode {
   var stringM : { [lowerCaseVar:string] : string } = {};
 
   for (let v of vars)
@@ -344,24 +349,24 @@ function fixVariableCase(inv: ESTree.Node, vars: string[]): ESTree.Node {
   });
 }
 
-function esprimaToStr(nd: ESTree.Node): string {
-  return estree_reduce<string>(nd,  (nd: ESTree.Node, args: string[]): string => {
+export function esprimaToStr(nd: ESNode): string {
+  return estree_reduce<string>(nd,  (nd: ESNode, args: string[]): string => {
     if (nd.type == "Program") {
       return args[0]
     }
 
     if (nd.type == "BinaryExpression") {
-      let be = <ESTree.BinaryExpression>nd;
+      let be = <BinaryExpression>nd;
       return "(" + args[0] + be.operator + args[1] + ")"
     }
 
     if (nd.type == "LogicalExpression") {
-      let le = <ESTree.LogicalExpression>nd;
+      let le = <LogicalExpression>nd;
       return "(" + args[0] + le.operator + args[1] + ")"
     }
 
     if (nd.type == "UnaryExpression") {
-      let ue = <ESTree.UnaryExpression>nd;
+      let ue = <UnaryExpression>nd;
       let s = args[0]
       if (ue.operator == '-' && s[0] == '-')
         s = '(' + s + ')'
@@ -369,25 +374,25 @@ function esprimaToStr(nd: ESTree.Node): string {
     }
 
     if (nd.type == "Literal") {
-      return "" + (<ESTree.Literal>nd).value
+      return "" + (<Literal>nd).value
     }
 
     if (nd.type == "Identifier") {
-      return (<ESTree.Identifier>nd).name
+      return (<Identifier>nd).name
     }
   })
 }
 
 let NUM_BINOPS = new Set(["+", "-", "*", "/", "%", "<", ">", "<=", ">="]);
 
-function esprimaToEvalStr(nd: ESTree.Node): string {
-  return estree_reduce<string>(nd,  (nd: ESTree.Node, args: string[]): string => {
+function esprimaToEvalStr(nd: ESNode): string {
+  return estree_reduce<string>(nd,  (nd: ESNode, args: string[]): string => {
     if (nd.type == "Program") {
       return args[0]
     }
 
     if (nd.type == "BinaryExpression") {
-      let be = <ESTree.BinaryExpression>nd;
+      let be = <BinaryExpression>nd;
       var checker: String;
       if (NUM_BINOPS.has(be.operator))
         checker = "both_numbers";
@@ -398,8 +403,8 @@ function esprimaToEvalStr(nd: ESTree.Node): string {
     }
 
     if (nd.type == "LogicalExpression") {
-      let le = <ESTree.LogicalExpression>nd;
-      if (le.operator == "->")
+      let le = <LogicalExpression>nd;
+      if (le.operator == ("->" as LogicalOperator))
         return "check_implication(" + args[0] + "," + args[1] + ")";
       else
         return "(both_booleans(" + args[0] + "," + args[1] + ",\"" +
@@ -407,7 +412,7 @@ function esprimaToEvalStr(nd: ESTree.Node): string {
     }
 
     if (nd.type == "UnaryExpression") {
-      let ue = <ESTree.UnaryExpression>nd;
+      let ue = <UnaryExpression>nd;
       if (ue.operator == "!")
         checker = "check_boolean";
       else
@@ -417,11 +422,11 @@ function esprimaToEvalStr(nd: ESTree.Node): string {
     }
 
     if (nd.type == "Literal") {
-      return "(" + (<ESTree.Literal>nd).value + ")"
+      return "(" + (<Literal>nd).value + ")"
     }
 
     if (nd.type == "Identifier") {
-      return (<ESTree.Identifier>nd).name
+      return (<Identifier>nd).name
     }
   })
 }

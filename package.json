@@ -1,0 +1,16 @@
+{
+  "name": "inv-gen-game",
+  "version": "0.0.0",
+  "description": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UCSD-PL/inv-gen-game.git"
+  },
+  "devDependencies": {
+    "@types/esprima": "^2.1.0",
+    "@types/jquery": "^1.10.0",
+    "@types/jquery-jsonrpcclient": "^0.7.0",
+    "@types/jqueryui": "^1.9.0",
+    "typescript": "2.2.2"
+  }
+}

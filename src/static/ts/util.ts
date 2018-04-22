@@ -1,12 +1,93 @@
-type directionT = "up" | "down" | "left" | "right"
+export type directionT = "up" | "down" | "left" | "right"
 
-type strset = Set<string>
+export type StrMap<T> = { [key: string]: T};
+export type strset = Set<string>
 
-function emptyStrset(): strset {
+export function reversed<T>(l: T[]): T[] {
+  let res: T[] = [];
+  for (let e of l) {
+    res.unshift(e)
+  }
+  return res;
+}
+
+export function repeat<T>(e: T, n: number): T[] {
+  let res: T[] = [];
+  for(let i = 0; i < n; i++) {
+    res.push(e);
+  }
+  return res;
+}
+
+export function intersection<T>(s1: Set<T>, s2: Set<T>): Set<T> {
+  let res: Set<T> = new Set();
+  for (let x of s1) {
+    if (s2.has(x)) {
+      res.add(x)
+    }
+  }
+
+  return res;
+}
+
+// Non-mutating union - s1 and s2 are unchanged
+export function union2<T>(s1: Set<T>, s2: Set<T>): Set<T> {
+  let res = new Set();
+  for (let e of s1) {
+    res.add(e);
+  }
+  for (let e of s2) {
+    res.add(e);
+  }
+  return res;
+}
+
+// Non-mutating difference - s1 and s2 are unchanged
+export function difference2<T>(s1: Set<T>, s2: Set<T>): Set<T> {
+  let res = new Set();
+  for (let e of s1) {
+    if (s2.has(e)) continue;
+    res.add(e);
+  }
+  return res;
+}
+
+export function max<T>(a: T[]): T {
+  let max : T = a[0];
+  for (let v of a) {
+    if (v>max) {
+      max = v;
+    }
+  }
+
+  return max;
+}
+
+// In-place union. Modifies s1
+export function union<T>(s1: Set<T>, s2: Set<T>): Set<T> {
+  for (let e of s2) {
+    s1.add(e);
+  }
+  return s1;
+}
+
+
+let uidCtrs : { [key: string]: number } = {};
+
+export function getUid(prefix: string): string {
+  if (!(prefix in uidCtrs)) {
+    uidCtrs[prefix] = -1;
+  }
+
+  uidCtrs[prefix]++;
+  return prefix + uidCtrs[prefix];
+}
+
+export function emptyStrset(): strset {
   return new Set();
 }
 
-function toStrset(strs: string[]): strset {
+export function toStrset(strs: string[]): strset {
   let res = emptyStrset();
   for (let x of strs) {
     res.add(x);
@@ -14,7 +95,7 @@ function toStrset(strs: string[]): strset {
   return res;
 }
 
-function isMember(s: strset, x: string): boolean {
+export function isMember(s: strset, x: string): boolean {
   return s.has(x);
 }
 
@@ -25,7 +106,7 @@ function isSubset(s1: strset, s2: strset): boolean {
   return true;
 }
 
-function difference(s1: strset, s2: strset): strset {
+export function difference(s1: strset, s2: strset): strset {
   let res  = emptyStrset();
   for (let k of s1) {
     if (isMember(s2, k)) continue;
@@ -34,33 +115,175 @@ function difference(s1: strset, s2: strset): strset {
   return res;
 }
 
-function isEmpty(s: strset): boolean {
+type EqFun<T> = (a: T, b: T) => boolean;
+export function structEq(o1: any, o2: any): boolean {
+  if ((typeof o1) !== (typeof o2)) {
+    return false;
+  }
+
+  // First try comparing as arrays
+  if (o1 instanceof Array) {
+    if (!(o2 instanceof Array)) return false;
+    if (o1.length != o2.length) return false;
+
+    for (let i1 in o1) {
+      if (!(i1 in o2) || !structEq(o1[i1], o2[i1])) return false;
+    }
+    return true;
+  }
+
+  // Next as objects
+  if (o1 instanceof Object) {
+    if (!(o2 instanceof Object)) return false;
+    for(let k in o1) {
+      if (!(k in o2) || !structEq(o1[k], o2[k])) {
+        return false;
+      }
+    }
+    for(let k in o2) {
+      if (!(k in o1)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+  // Finally as primitives
+  return o1 === o2;
+}
+
+export function shallowCopy<T>(o: T): T {
+  // Array shallow copy
+  if (o instanceof Array) {
+    let res:any = [];
+    for (let el of o) {
+      res.push(el)
+    }
+    return res;
+  }
+
+  // Object shallow copy
+  if (o instanceof Object) {
+    let res: any = {};
+    for (let k in o) {
+      res[k] = o[k];
+    }
+    return res;
+  }
+  // Primitive
+  if (typeof(o) == "string" || typeof(o) == "number" || typeof(o) == "boolean") {
+    return o;
+  }
+  assert(false, "Can't shallow copy " + o)
+}
+
+export function diff<T>(a: StrMap<T>,
+                        b: StrMap<T>,
+                        eq?: EqFun<T>): [Set<string>, Set<string>, Set<string>] {
+  // Compute the triple <removed entries, changed entries, new  entries>
+  // between a and b
+  if (eq === undefined) {
+    eq = (x: T, y: T) => x == y;
+  }
+  let removed : Set<string> = new Set();
+  let changed: Set<string> = new Set();
+  let added : Set<string> = new Set();
+  for (let id in a) {
+    if (!(id in b)) {
+      removed.add(id);
+    } else if (!eq(a[id], b[id])) {
+      changed.add(id);
+    }
+  }
+
+  for (let id in b) {
+    if (!(id in a)) {
+      added.add(id);
+    }
+  }
+
+  return [removed, changed, added];
+}
+
+export function diff2<T>(a: StrMap<StrMap<T>>,
+                        b: StrMap<StrMap<T>>,
+                        eq?: EqFun<T>): [Set<[string, string]>,
+                                         Set<[string, string]>,
+                                         Set<[string, string]>]
+{
+  // Compute the triple <removed entries, changed entries, new  entries>
+  // between a and b
+  if (eq === undefined) {
+    eq = (x: T, y: T) => x == y;
+  }
+  let removed : Set<[string, string]> = new Set();
+  let changed: Set<[string, string]> = new Set();
+  let added : Set<[string, string]> = new Set();
+
+  let removedId: Set<string>;
+  let dummy: Set<string>;
+  let addedId: Set<string>;
+  [removedId, dummy, addedId] = diff(a, b);
+
+  for (let id1 of removedId) {
+    for (let id2 in a[id1]) {
+      removed.add([id1, id2]);
+    }
+  }
+
+  for (let id1 of addedId) {
+    for (let id2 in b[id1]) {
+      added.add([id1, id2]);
+    }
+  }
+
+  for (let id1 in a) {
+    if (!(id1 in b)) {
+      continue;
+    }
+    let [removedId2, changedId2, addedId2] = diff(a[id1], b[id1], eq);
+    for (let id2 of removedId2) {
+      removed.add([id1, id2])
+    }
+    for (let id2 of changedId2) {
+      changed.add([id1, id2])
+    }
+    for (let id2 of addedId2) {
+      added.add([id1, id2])
+    }
+  }
+
+  return [removed, changed, added];
+}
+
+export function isEmpty(s: strset): boolean {
   return s.size === 0;
 }
 
-function any_mem(s: strset): string {
+export function any_mem(s: strset): string {
   for (let k of s) {
     return k;
   }
 }
 
-function log(arg: any): void { console.log(arg); }
-function error(arg: any): void { log(arg); }
-function assert(c: boolean, msg?: any): void {
+export function log(arg: any): void { console.log(arg); }
+export function error(arg: any): void { log(arg); }
+export function assert(c: boolean, msg?: any): void {
   if (msg === undefined)
     msg = "Oh-oh";
 
-  if (!c)
-    throw msg || "Assertion failed.";
-}
-function logEvent(name: string, data: any): any {
-  return rpc_logEvent(Args.get_worker_id(), name, data);
+  if (!c) {
+    if (msg === undefined) {
+      msg = "Assertion failed.";
+    }
+    throw msg;
+  }
 }
 
 function fst<T1, T2>(x: [T1, T2]): T1 { return x[0]; }
 function snd<T1, T2>(x: [T1, T2]): T2 { return x[1]; }
 
-class Args {
+export class Args {
   static parsed: boolean = false;
   static args: { [key:string] : string; } = {};
   static hit_id: string = null;
@@ -154,7 +377,7 @@ function shuffle<T>(arr: T[]): void {
   }
 };
 
-class Label {
+export class Label {
   public pos: JQueryUI.JQueryPositionOptions;
   public elem: JQuery;
   public timer: any;
@@ -253,23 +476,27 @@ class Label {
   }
 }
 
-function removeLabel(l: Label) {
+export function removeLabel(l: Label) {
   l.remove();
 }
 
-function label(arg: (JQueryUI.JQueryPositionOptions | HTMLElement),
+export function label(arg: (JQueryUI.JQueryPositionOptions | HTMLElement | JQuery),
   txt: string,
   direction: directionT,
   pulseWidth = 5,
   pulse = 500) {
-  return new Label(arg, txt, direction, pulseWidth, pulse);
+  if (arg.hasOwnProperty("get")) {
+    return new Label((arg as JQuery).get()[0], txt, direction, pulseWidth, pulse);
+  } else {
+    return new Label((arg as (JQueryUI.JQueryPositionOptions | HTMLElement)), txt, direction, pulseWidth, pulse);
+  }
 }
 
 interface IStep {
   setup(cs: any): any;
 }
 
-class Script {
+export class Script {
   step: number = -1;
   cancelCb: () => void = null;
   timeoutId: any;
@@ -344,15 +571,7 @@ class Script {
   }
 }
 
-/* In-place union - modifies s1 */
-function union(s1: strset, s2: strset): strset {
-  for (let e of s2) {
-    s1.add(e);
-  }
-  return s1;
-}
-
-function setlen(s: strset): number {
+export function setlen(s: strset): number {
   return s.size;
 }
 
@@ -360,7 +579,7 @@ function forAll(boolL: boolean[]): boolean {
   return boolL.map(x => x ? 1 : 0).reduce((x, y) => x + y, 0) === boolL.length;
 }
 
-function zip<T1, T2>(a1: T1[], a2: T2[]): [T1, T2][] {
+export function zip<T1, T2>(a1: T1[], a2: T2[]): [T1, T2][] {
   return a1.map((_, i: number) => <[T1, T2]>[a1[i], a2[i]]);
 }
 
@@ -440,9 +659,9 @@ class DynamicAttachments {
   }
 }
 
-let das = new DynamicAttachments();
+export let das = new DynamicAttachments();
 
-function disableBackspaceNav() {
+export function disableBackspaceNav() {
   $(document).unbind("keydown").bind("keydown", function(event) {
     let doPrevent = false;
     if (event.keyCode === 8) {
@@ -498,7 +717,32 @@ function shape_eq(o1: any, o2: any) {
   assert(false, "Unexpected objects being compared: " + o1 + " and " + o2);
 }
 
-function unique<T>(l:T[], id:(x:T)=>string): T[] {
+export function entries(o: Object): string[] {
+  let res: string[] = [];
+  for (let i in o) {
+    if (!o.hasOwnProperty(i)) {
+      continue
+    }
+
+    res.push(i);
+  }
+
+  return res;
+}
+
+export function single<T>(l:T[]|Set<T>): T {
+  if (l instanceof Set) {
+    assert(l.size == 1, "Unexpected number of things: " + l);
+  } else {
+    assert(l.length == 1, "Unexpected number of things: " + l);
+  }
+
+  for (let x of l) {
+    return x;
+  }
+}
+
+export function unique<T>(l:T[], id:(x:T)=>string): T[] {
   let dict: { [ key: string ] : T } = { }
   for (var x in l) {
     dict[id(l[x])] = l[x];
@@ -524,20 +768,64 @@ function isin<T>(needle:T, hay:T[], id:(x:T)=>string): boolean {
   return false;
 }
 
-function min(...args: number[]): number {
-  let min = args[0];
-  for (var i in args)
-    if (args[i] < min) {
-      min = args[i];
-    }
-  return min
+export function min<T>(args: T[]): T;
+export function min<T>(...args: T[]): T;
+export function min<T>(...args: any[]): T {
+  if (args.length == 1) {
+    assert(args instanceof Array);
+    return this.apply(null, args[0]);
+  } else {
+    assert(args.length > 0);
+    let min = args[0];
+    for (var i in args)
+      if (args[i] < min) {
+        min = args[i];
+      }
+    return min as T
+  }
 }
 
-function queryAppend(qStr: string, append: string): string {
+export function min_cmp<T>(vals: T[], lt?: (a:T, b:T)=>boolean): T {
+  let min = vals[0];
+  for (var i in vals) {
+    let isLT: boolean = (lt == undefined ? vals[i] < min : lt(vals[i], min));
+    if (isLT) {
+      min = vals[i];
+    }
+  }
+  return min as T
+}
+
+export function queryAppend(qStr: string, append: string): string {
   if (qStr == "") {
     qStr += "?";
   } else {
     qStr += "&";
   }
   return qStr + append;
+}
+
+export function mapMap<T, U>(m: StrMap<T>, f: (x:T)=>U): StrMap<U> {
+  let res: StrMap<U> = {};
+  for (let id in m) {
+    res[id] = f(m[id]);
+  }
+
+  return res;
+}
+
+export function mapMap2<T, U>(m: StrMap<StrMap<T>>, f: (x:T)=>U): StrMap<StrMap<U>> {
+  return mapMap<StrMap<T>, StrMap<U>>(m, (m: StrMap<T>): StrMap<U> => mapMap(m, f) );
+}
+
+export function copyMap<T>(m: StrMap<T>): StrMap<T> {
+  return shallowCopy(m);
+}
+
+export function copyMap2<T>(m: StrMap<StrMap<T>>): StrMap<StrMap<T>> {
+  let res: StrMap<StrMap<T>> = {};
+  for (let id in m) {
+    res[id] = copyMap(m[id]);
+  }
+  return res;
 }

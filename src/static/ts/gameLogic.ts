@@ -1,17 +1,40 @@
-type voidCb = ()=>void
-type boolCb = (res: boolean)=>void
-type invSoundnessResT = { ctrex: [ any[], any[], any[] ]}
-type invariantT = ESTree.Node;
-type templateT = [ invariantT, string[], string[] ]
+import {equivalentPairs, impliedBy, isTautology, simplify, tryAndVerify} from "./logic";
+import {error, toStrset, isEmpty, difference, any_mem, assert} from "./util"
+import {TwoPlayerPowerupSuggestionFullHistory, IPowerupSuggestion, IPowerup, PowerupSuggestionAll, MultiplierPowerup, PowerupSuggestionFullHistory} from "./powerups"
+import {invPP} from "./pp";
+import {Level, DynamicLevel} from "./level";
+import {ITracesWindow} from "./traceWindow";
+import {IProgressWindow} from "./progressWindow";
+import {StickyWindow, TwoPlayerStickyWindow} from "./stickyWindow";
+import {esprimaToStr, invToJS, invEval, evalResultBool, interpretError, fixVariableCase, identifiers, ImmediateErrorException, generalizeInv} from "./eval";
+import {getAllPlayer1Inv, getAllPlayer2Inv, getBonus} from "./bonus";
+import {ScoreWindow, TwoPlayerScoreWindow} from "./scoreWindow"
+import {dataT, voidCb, boolCb, invSoundnessResT, invariantT, templateT} from "./types"
+import {logEvent} from "./rpc"
+import {parse} from "esprima";
+import {Node as ESNode} from "estree"
 
-declare var curLvlSet: string; // TODO: Remove hack
+
+let _curLvlSet: string = null;
+// TODO: These declare var need to be fixed (import/get from main) before
+// we can use two player gameplay
 declare var progW: any;
 declare var progW2: any;
 declare var traceW: any;
 declare var traceW2: any;
-declare var allowBonus: boolean;
+let allowBonus: boolean = false;
 
-class UserInvariant {
+export function curLvlSet(): string {
+  return _curLvlSet;
+}
+
+export function setCurLvlSet(newLvlSet: string): void {
+  _curLvlSet = newLvlSet
+}
+
+let parseF = (s: string) => parse(s);
+
+export class UserInvariant {
   public rawInv: invariantT;
   public archetype: templateT;
   public id: string;
@@ -20,7 +43,7 @@ class UserInvariant {
   constructor(public rawUserInp: string,
               public rawJS: string,
               public canonForm: invariantT) {
-    this.rawInv = esprima.parse(rawJS);
+    this.rawInv = parse(rawJS);
     this.archetype = generalizeInv(canonForm);
     this.archetypeId = esprimaToStr(this.archetype[0]);
     this.id = esprimaToStr(this.canonForm);
@@ -56,7 +79,7 @@ interface IDynGameLogic extends IGameLogic {
   onCommit(cb: ()=>void): void;
 }
 
-abstract class BaseGameLogic implements IGameLogic {
+export abstract class BaseGameLogic implements IGameLogic {
   curLvl: Level = null;
   lvlPassedCb: voidCb = null;
   lvlLoadedCb: voidCb = null;
@@ -135,7 +158,7 @@ abstract class BaseGameLogic implements IGameLogic {
   skipToNextLvl() : void { }
 }
 
-class StaticGameLogic extends BaseGameLogic implements IGameLogic {
+export class StaticGameLogic extends BaseGameLogic implements IGameLogic {
   foundJSInv: UserInvariant[] = [];
   lvlPassedF: boolean = false;
 
@@ -160,11 +183,11 @@ class StaticGameLogic extends BaseGameLogic implements IGameLogic {
       cb(true)
     } else  if (goal.equivalent) {
       assert(goal.equivalent.length > 0);
-      let eq_exp:(string[]|ESTree.Node[]) = goal.equivalent
+      let eq_exp:(string[]|ESNode[]) = goal.equivalent
       if (typeof(eq_exp[0]) == "string") {
-        eq_exp = (<string[]>eq_exp).map(esprima.parse);
+        eq_exp = (<string[]>eq_exp).map(parseF);
       }
-      equivalentPairs(<ESTree.Node[]>eq_exp, this.foundJSInv.map((x)=>x.canonForm), function(pairs) {
+      equivalentPairs(<ESNode[]>eq_exp, this.foundJSInv.map((x)=>x.canonForm), function(pairs) {
         var numFound = 0;
         var equiv = []
         for (var i=0; i < pairs.length; i++) {
@@ -196,7 +219,7 @@ class StaticGameLogic extends BaseGameLogic implements IGameLogic {
     let parsedInv:invariantT = null
 
     try {
-      parsedInv = esprima.parse(desugaredInv);
+      parsedInv = parse(desugaredInv);
     } catch (err) {
       this.tracesW.delayedError(inv + " is not a valid expression.");
       return;
@@ -218,7 +241,7 @@ class StaticGameLogic extends BaseGameLogic implements IGameLogic {
       if (!evalResultBool(res))
         return;
 
-      simplify(jsInv, (simplInv: ESTree.Node) => { 
+      simplify(jsInv, (simplInv: ESNode) => { 
         let ui: UserInvariant = new UserInvariant(inv, jsInv, simplInv)
 
         let redundant = this.progressW.contains(ui.id)
@@ -248,7 +271,7 @@ class StaticGameLogic extends BaseGameLogic implements IGameLogic {
               return
             }
 
-            impliedBy(gl.foundJSInv.map(x=>x.canonForm), ui.canonForm, function (x: ESTree.Node[]) {
+            impliedBy(gl.foundJSInv.map(x=>x.canonForm), ui.canonForm, function (x: ESNode[]) {
               if (x.length > 0) {
                 gl.progressW.markInvariant(esprimaToStr(x[0]), "implies")
                 gl.tracesW.immediateError("This is weaker than a found expression!")
@@ -283,7 +306,7 @@ class StaticGameLogic extends BaseGameLogic implements IGameLogic {
   }
 }
 
-class PatternGameLogic extends BaseGameLogic {
+export class PatternGameLogic extends BaseGameLogic {
   foundJSInv: UserInvariant[] = [];
   invMap: { [ id: string ] : UserInvariant } = {};
   lvlPassedF: boolean = false;
@@ -334,7 +357,7 @@ class PatternGameLogic extends BaseGameLogic {
       }
     }
 
-    logEvent("PowerupsActivated", [curLvlSet, this.curLvl.id, inv, pwupsActivated]);
+    logEvent("PowerupsActivated", [curLvlSet(), this.curLvl.id, inv, pwupsActivated]);
 
     if (hold.length == 0) {
       this.pwupSuggestion.invariantTried(inv);
@@ -344,7 +367,7 @@ class PatternGameLogic extends BaseGameLogic {
 
   goalSatisfied(cb:(sat: boolean, feedback: any)=>void):void {
     if (this.foundJSInv.length > 0) {
-      tryAndVerify(curLvlSet, this.curLvl.id, this.foundJSInv.map((x)=>x.canonForm),
+      tryAndVerify(curLvlSet(), this.curLvl.id, this.foundJSInv.map((x)=>x.canonForm),
         ([overfitted, nonind, sound, post_ctrex]) => {
           if (sound.length > 0) {
             cb(post_ctrex.length == 0, [overfitted, nonind, sound, post_ctrex]);
@@ -365,7 +388,7 @@ class PatternGameLogic extends BaseGameLogic {
     let gl = this;
     let inv = invPP(this.tracesW.curExp().trim());
     let desugaredInv = invToJS(inv)
-    var parsedInv: ESTree.Node = null;
+    var parsedInv: ESNode = null;
 
     this.userInputCb(inv);
 
@@ -375,7 +398,7 @@ class PatternGameLogic extends BaseGameLogic {
     }
 
     try {
-      parsedInv = esprima.parse(desugaredInv);
+      parsedInv = parse(desugaredInv);
     } catch (err) {
       //this.tracesW.delayedError(inv + " is not a valid expression.");
       return;
@@ -403,10 +426,10 @@ class PatternGameLogic extends BaseGameLogic {
       if (!evalResultBool(res))
         return;
 
-      simplify(jsInv, (simplInv: ESTree.Node) => { 
+      simplify(jsInv, (simplInv: ESNode) => { 
         let ui: UserInvariant = new UserInvariant(inv, jsInv, simplInv)
         logEvent("TriedInvariant",
-                 [curLvlSet,
+                 [curLvlSet(),
                   gl.curLvl.id,
                   ui.rawUserInp,
                   ui.canonForm,
@@ -440,7 +463,7 @@ class PatternGameLogic extends BaseGameLogic {
 
             let allCandidates = gl.foundJSInv.map((x)=>x.canonForm);
 
-            impliedBy(allCandidates, ui.canonForm, function (x: ESTree.Node[]) {
+            impliedBy(allCandidates, ui.canonForm, function (x: ESNode[]) {
               if (x.length > 0) {
                 gl.progressW.markInvariant(esprimaToStr(x[0]), "implies")
                 gl.tracesW.immediateError("This is weaker than a found expression!")
@@ -457,7 +480,7 @@ class PatternGameLogic extends BaseGameLogic {
                   gl.tracesW.setExp("");
                 }
                 logEvent("FoundInvariant",
-                         [curLvlSet,
+                         [curLvlSet(),
                           gl.curLvl.id,
                           ui.rawUserInp,
                           ui.canonForm,
@@ -472,7 +495,7 @@ class PatternGameLogic extends BaseGameLogic {
                       gl.lvlSolvedF = false;
                       gl.lvlPassedCb();
                       logEvent("FinishLevel",
-                               [curLvlSet,
+                               [curLvlSet(),
                                 gl.curLvl.id,
                                 false,
                                 gl.foundJSInv.map((x)=>x.rawUserInp),
@@ -501,7 +524,7 @@ class PatternGameLogic extends BaseGameLogic {
                         return;
 
                       logEvent("FinishLevel",
-                               [curLvlSet,
+                               [curLvlSet(),
                                 gl.curLvl.id,
                                 sat,
                                 gl.foundJSInv.map((x)=>x.rawUserInp),
@@ -541,7 +564,7 @@ class PatternGameLogic extends BaseGameLogic {
     this.allData[lvl.id][2]  = this.allData[lvl.id][2].concat(lvl.data[2])
 
     for (let [rawInv, canonInv] of lvl.startingInvs) {
-      let jsInv = esprimaToStr(esprima.parse(invToJS(rawInv)));
+      let jsInv = esprimaToStr(parse(invToJS(rawInv)));
       let ui = new UserInvariant(rawInv, jsInv, canonInv);
       this.foundJSInv.push(ui);
       this.invMap[ui.id] = ui;
@@ -552,7 +575,7 @@ class PatternGameLogic extends BaseGameLogic {
     if (this.lvlLoadedCb)
       this.lvlLoadedCb();
     logEvent("StartLevel",
-             [curLvlSet,
+             [curLvlSet(),
               this.curLvl.id,
               this.curLvl.colSwap,
               this.curLvl.isReplay()]);
@@ -560,12 +583,12 @@ class PatternGameLogic extends BaseGameLogic {
 
   skipToNextLvl() : void {
     logEvent("SkipToNextLevel",
-             [curLvlSet,
+             [curLvlSet(),
               this.curLvl.id,
               this.curLvl.colSwap,
               this.curLvl.isReplay()]);
     logEvent("FinishLevel",
-             [curLvlSet,
+             [curLvlSet(),
               this.curLvl.id,
               false,
               this.foundJSInv.map((x)=>x.rawUserInp),
@@ -725,7 +748,7 @@ class TwoPlayerGameLogic extends TwoPlayerBaseGameLogic implements IGameLogic {
     } else if (goal.equivalent) {
       // check for the union of both players' invariants
       // equivalentPairs(goal.equivalent, this.foundJSInv, function(pairs) {
-      equivalentPairs(goal.equivalent.map(esprima.parse), allInvs.map(esprima.parse), function(pairs) {
+      equivalentPairs(goal.equivalent.map(parseF), allInvs.map(parseF), function(pairs) {
         let numFound = 0;
         let equiv = [];
         for (let i = 0; i < pairs.length; i++) {
@@ -762,12 +785,12 @@ class TwoPlayerGameLogic extends TwoPlayerBaseGameLogic implements IGameLogic {
 
     let inv = invPP(this.tracesW.curExp().trim());
     let desugaredInv = invToJS(inv);
-    let parsedInv: ESTree.Node = null;
+    let parsedInv: ESNode = null;
 
     this.userInputCb(inv);
 
     try {
-      parsedInv = esprima.parse(desugaredInv);
+      parsedInv = parse(desugaredInv);
     } catch (err) {
       this.tracesW.delayedError(inv + " is not a valid expression.");
       return;
@@ -809,7 +832,7 @@ class TwoPlayerGameLogic extends TwoPlayerBaseGameLogic implements IGameLogic {
         let player2Invs: string[] = getAllPlayer2Inv();
 
         if (player2Invs.length !== 0) {
-          equivalentPairs([esprima.parse(jsInv)], player2Invs.map(esprima.parse), function(x: any) {
+          equivalentPairs([parseF(jsInv)], player2Invs.map(parseF), function(x: any) {
             if (x != null && typeof player2Invs[x] !== "undefined") {
               // console.log(jsInv + " <=> " + player2Invs[x]);
               progW2.markInvariant(player2Invs[x], "duplicate");
@@ -819,7 +842,7 @@ class TwoPlayerGameLogic extends TwoPlayerBaseGameLogic implements IGameLogic {
               return;
             }
             else {
-              impliedBy(player2Invs.map(esprima.parse), esprima.parse(jsInv), function(x: any) {
+              impliedBy(player2Invs.map(parseF), parseF(jsInv), function(x: any) {
                 if (x !== null) {
                   // console.log(player2Invs[x] + " ==> " + jsInv);
                   progW2.markInvariant(player2Invs[x], "implies");
@@ -847,7 +870,7 @@ class TwoPlayerGameLogic extends TwoPlayerBaseGameLogic implements IGameLogic {
 
         if (player1Invs.length !== 0) {
 
-          equivalentPairs([esprima.parse(jsInv)], player1Invs.map(esprima.parse), function(x) {
+          equivalentPairs([parseF(jsInv)], player1Invs.map(parseF), function(x) {
             if (x != null && typeof player1Invs[x] !== "undefined") {
               // console.log(jsInv + " <=> " + player1Invs[x]);
               progW.markInvariant(player1Invs[x], "duplicate");
@@ -858,7 +881,7 @@ class TwoPlayerGameLogic extends TwoPlayerBaseGameLogic implements IGameLogic {
             }
 
             else {
-              impliedBy(player1Invs.map(esprima.parse), esprima.parse(jsInv), function(x: invariantT[]) {
+              impliedBy(player1Invs.map(parseF), parseF(jsInv), function(x: invariantT[]) {
                 if (x !== null && x.length > 0) {
                   // console.log(player1Invs[x] + " ==> " + jsInv);
                   progW.markInvariant(esprimaToStr(x[0]), "implies");
@@ -883,7 +906,7 @@ class TwoPlayerGameLogic extends TwoPlayerBaseGameLogic implements IGameLogic {
       }
       else {
         let gl = this;
-        isTautology(esprima.parse(jsInv), function(res) {
+        isTautology(parse(jsInv), function(res) {
           if (res) {
             gl.tracesW.error("This is always true...");
             gl.tracesW.disableSubmit();
@@ -891,9 +914,9 @@ class TwoPlayerGameLogic extends TwoPlayerBaseGameLogic implements IGameLogic {
             return;
           }
 
-          let jsInvEs = esprima.parse(jsInv);
+          let jsInvEs = parse(jsInv);
 
-          impliedBy(gl.foundJSInv.map(esprima.parse), jsInvEs, function(invs: invariantT[]) {
+          impliedBy(gl.foundJSInv.map(parseF), jsInvEs, function(invs: invariantT[]) {
             if (invs !== null && invs.length > 0) {
               var x: number = gl.foundJSInv.indexOf(esprimaToStr(invs[0]));
               gl.progressW.markInvariant(gl.foundInv[x], "implies");

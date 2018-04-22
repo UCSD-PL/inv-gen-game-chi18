@@ -1,4 +1,8 @@
-class Level {
+import {rpc_loadLvlBasic, rpc_loadLvlDynamic, rpc_loadNextLvlDynamic} from "./rpc";
+import {Args} from "./util";
+import {dataT, invariantT} from "./types";
+
+export class Level {
   constructor(public id: string,
     public variables: string[],
     public data: dataT,
@@ -18,7 +22,7 @@ class Level {
   }
 }
 
-class DynamicLevel extends Level{
+export class DynamicLevel extends Level{
   constructor(public id: string,
     public variables: string[],
     public data:  dataT,
