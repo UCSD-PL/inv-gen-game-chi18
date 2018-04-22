@@ -1,0 +1,4 @@
+{
+  "type":"post-assert",
+  "assert":"sum == n*(n+1)"
+}

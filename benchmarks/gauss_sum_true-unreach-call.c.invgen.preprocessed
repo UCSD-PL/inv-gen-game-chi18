@@ -1,0 +1,20 @@
+# 1 "/tmp/tmpBAzbmk.cpp"
+# 1 "<built-in>"
+# 1 "<command-line>"
+# 1 "/usr/include/stdc-predef.h" 1 3 4
+# 1 "<command-line>" 2
+# 1 "/tmp/tmpBAzbmk.cpp"
+
+int NONDET;
+
+int main() {
+    int n, sum, i;
+    n;
+    assume(1 <= n && n <= 1000);
+    sum = 0;
+    for(i = 1; i <= n; i++) {
+        sum = sum + i;
+    }
+    assert(2*sum == n*(n+1));
+    return 0;
+}
