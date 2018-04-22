@@ -40,7 +40,12 @@ To run the backend server with the benchmarks from the paper please run:
 $REPO/src/server.py  --local --port 8080 --ename foo --lvlset ../lvlsets/unsolved.lvlset --db foo.db
 ```
 
-For more information on arguments to the command run ``` $REPO/src/server.py -h```
+For more information on arguments to the command run ``` $REPO/src/server.py -h```. At this point you should be able to play the game
+if you point your browser to [localhost:8080/game.html](localhost:8080/game.html)
 
 
 ## Directories
+
+The frontend code is under ```src/static/ts```. The backend code is the python
+code under ```src/``` and sub-directories. Most of the boogie relevant code is
+under ```src/lib/boogie```. The main server code is in ```src/server.py``` and ```src/server_common.py```
